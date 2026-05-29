@@ -23,6 +23,10 @@ const AppLayout = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [uploading, setUploading] = useState(false);
 
+  // Estados para alteração de senha
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('wishlist-theme');
     if (saved === 'light') {
@@ -83,6 +87,17 @@ const AppLayout = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Validação local de 50MB
+    const maxSizeBytes = 50 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'O tamanho máximo permitido para fotos é de 50MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setUploading(true);
       const fileExt = file.name.split('.').pop();
@@ -113,24 +128,42 @@ const AppLayout = () => {
     }
   };
 
-  // Mutação para salvar perfil
+  // Mutação para salvar perfil e senha
   const updateProfile = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      // 1. Atualiza dados do perfil
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
           display_name: displayName.trim(),
           avatar_url: avatarUrl,
         } as any)
         .eq('user_id', user!.id);
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. Se digitou uma nova senha, faz o update
+      if (newPassword.trim()) {
+        if (newPassword !== confirmPassword) {
+          throw new Error('As senhas digitadas não coincidem.');
+        }
+        if (newPassword.length < 6) {
+          throw new Error('A nova senha deve possuir pelo menos 6 caracteres.');
+        }
+        
+        const { error: authError } = await supabase.auth.updateUser({
+          password: newPassword.trim(),
+        });
+        if (authError) throw authError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-profile', user?.id] });
-      toast({ title: '✅ Perfil atualizado!' });
+      toast({ title: '✅ Perfil atualizado com sucesso!' });
       setProfileOpen(false);
+      setNewPassword('');
+      setConfirmPassword('');
     },
-    onError: (e: any) => toast({ title: 'Erro ao atualizar', description: e.message, variant: 'destructive' }),
+    onError: (e: any) => toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
   });
 
   const displayUser = profile?.display_name || user?.email?.split('@')[0] || 'Usuário';
@@ -207,8 +240,8 @@ const AppLayout = () => {
       </main>
 
       {/* Modal de Configuração do Perfil */}
-      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      <Dialog open={profileOpen} onOpenChange={(val) => { setProfileOpen(val); if (!val) { setNewPassword(''); setConfirmPassword(''); } }}>
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPen className="h-5 w-5 text-primary" /> Editar Perfil
@@ -218,29 +251,34 @@ const AppLayout = () => {
             
             {/* Clique no Avatar para Fazer Upload */}
             <div className="flex flex-col items-center gap-4">
-              <div 
-                onClick={handleAvatarClick}
-                className="relative cursor-pointer group rounded-full ring-4 ring-primary/20 overflow-hidden h-24 w-24 flex items-center justify-center bg-secondary hover:ring-primary transition-all shadow-sm shrink-0"
-                title="Clique para carregar uma imagem"
-              >
-                <Avatar className="h-full w-full">
-                  <AvatarImage src={avatarUrl} alt={displayName} className="object-cover" />
-                  <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
-                    {displayName.substring(0, 2).toUpperCase() || 'US'}
-                  </AvatarFallback>
-                </Avatar>
-                
-                {/* Overlay no Hover e Efeito de Carregando */}
-                <div className={`absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white transition-opacity duration-200 ${uploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                  {uploading ? (
-                    <span className="text-[10px] font-semibold animate-pulse text-center px-1">Enviando...</span>
-                  ) : (
-                    <>
-                      <Camera className="h-6 w-6 mb-1 text-primary-foreground" />
-                      <span className="text-[10px] font-semibold">Alterar Foto</span>
-                    </>
-                  )}
+              <div className="flex flex-col items-center gap-2">
+                <div 
+                  onClick={handleAvatarClick}
+                  className="relative cursor-pointer group rounded-full ring-4 ring-primary/20 overflow-hidden h-24 w-24 flex items-center justify-center bg-secondary hover:ring-primary transition-all shadow-sm shrink-0"
+                  title="Clique para carregar uma imagem"
+                >
+                  <Avatar className="h-full w-full">
+                    <AvatarImage src={avatarUrl} alt={displayName} className="object-cover" />
+                    <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
+                      {displayName.substring(0, 2).toUpperCase() || 'US'}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  {/* Overlay no Hover e Efeito de Carregando */}
+                  <div className={`absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white transition-opacity duration-200 ${uploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {uploading ? (
+                      <span className="text-[10px] font-semibold animate-pulse text-center px-1">Enviando...</span>
+                    ) : (
+                      <>
+                        <Camera className="h-6 w-6 mb-1 text-primary-foreground" />
+                        <span className="text-[10px] font-semibold">Alterar Foto</span>
+                      </>
+                    )}
+                  </div>
                 </div>
+                <span className="text-[11px] text-muted-foreground text-center">
+                  Tamanho máximo: <strong>50MB</strong>
+                </span>
               </div>
               
               <input 
@@ -257,6 +295,33 @@ const AppLayout = () => {
                   value={displayName} 
                   onChange={(e) => setDisplayName(e.target.value)} 
                   placeholder="Seu nome no app" 
+                  className="bg-secondary border-border text-foreground"
+                />
+              </div>
+            </div>
+
+            {/* Nova Seção de Segurança: Alterar Senha */}
+            <div className="border-t border-border pt-4 space-y-3">
+              <Label className="text-xs font-semibold text-muted-foreground block">Segurança (Alterar Senha)</Label>
+              
+              <div className="space-y-1">
+                <Label className="text-[11px]">Nova Senha</Label>
+                <Input 
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Nova senha (mínimo 6 caracteres)"
+                  className="bg-secondary border-border text-foreground"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px]">Confirmar Nova Senha</Label>
+                <Input 
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirme a nova senha"
                   className="bg-secondary border-border text-foreground"
                 />
               </div>

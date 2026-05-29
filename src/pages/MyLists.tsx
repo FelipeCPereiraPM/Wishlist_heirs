@@ -10,11 +10,46 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, ListChecks, ChevronRight } from 'lucide-react';
+import { 
+  Plus, ListChecks, ChevronRight,
+  Plane, Briefcase, Palmtree, Smartphone, Laptop, Gamepad2,
+  Sofa, Key, ShoppingBag, Dumbbell, Bike, BookOpen, Palette, Camera,
+  Coffee, Utensils, GraduationCap, Backpack, PawPrint, Heart, ShoppingCart
+} from 'lucide-react';
 import { VisibilityBadge } from '@/lib/listVisibility';
 import type { Tables } from '@/integrations/supabase/types';
 
 type WishList = Tables<'wish_lists'>;
+
+// Lista de ícones disponíveis extraídos da imagem de referência (excluindo bússola e adicionando carrinho de compras)
+export const AVAILABLE_ICONS = [
+  { name: 'plane', icon: Plane, label: '✈️ Viagem / Avião' },
+  { name: 'briefcase', icon: Briefcase, label: '💼 Mala de Viagem' },
+  { name: 'palmtree', icon: Palmtree, label: '🌴 Férias / Praia' },
+  { name: 'shopping-cart', icon: ShoppingCart, label: '🛒 Carrinho de compras' },
+  { name: 'smartphone', icon: Smartphone, label: '📱 Celular / Tech' },
+  { name: 'laptop', icon: Laptop, label: '💻 Computador / Notebook' },
+  { name: 'gamepad-2', icon: Gamepad2, label: '🎮 Games / Lazer' },
+  { name: 'sofa', icon: Sofa, label: '🛋️ Decoração / Sofá' },
+  { name: 'key', icon: Key, label: '🔑 Casa Nova / Chaves' },
+  { name: 'shopping-bag', icon: ShoppingBag, label: '🛍️ Moda / Compras' },
+  { name: 'dumbbell', icon: Dumbbell, label: '🏋️ Academia / Treino' },
+  { name: 'bike', icon: Bike, label: '🚲 Ciclismo / Bicicleta' },
+  { name: 'book-open', icon: BookOpen, label: '📖 Leitura / Livro' },
+  { name: 'palette', icon: Palette, label: '🎨 Arte / Paleta' },
+  { name: 'camera', icon: Camera, label: '📷 Fotografia / Câmera' },
+  { name: 'coffee', icon: Coffee, label: '☕ Café / Bebidas' },
+  { name: 'utensils', icon: Utensils, label: '🍽️ Gastronomia / Talheres' },
+  { name: 'graduation-cap', icon: GraduationCap, label: '🎓 Formatura' },
+  { name: 'backpack', icon: Backpack, label: '🎒 Escola / Mochila' },
+  { name: 'paw-print', icon: PawPrint, label: '🐾 Pets / Patinha' },
+  { name: 'heart', icon: Heart, label: '❤️ Favoritos' },
+];
+
+export const getListIcon = (iconName: string | null) => {
+  const match = AVAILABLE_ICONS.find(i => i.name === iconName);
+  return match ? match.icon : ListChecks;
+};
 
 const MyLists = () => {
   const { user } = useAuth();
@@ -24,6 +59,7 @@ const MyLists = () => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [visibility, setVisibility] = useState('public');
+  const [icon, setIcon] = useState('gift');
   const [nameError, setNameError] = useState('');
 
   // Lists where I'm owner
@@ -60,27 +96,36 @@ const MyLists = () => {
 
   const createList = useMutation({
     mutationFn: async () => {
-      // Ensure we have a fresh, valid session so auth.uid() is set on the server (RLS)
       const { data: authData } = await supabase.auth.getUser();
       const currentUserId = authData.user?.id;
       if (!currentUserId) {
         throw new Error('Sua sessão expirou. Faça login novamente para criar uma lista.');
       }
-      const { data, error } = await supabase.rpc('create_wish_list' as never, {
-        _name: name.trim(),
-        _visibility: visibility,
-      } as never);
+      
+      // Cria a lista diretamente inserindo na tabela para aceitar o campo customizado 'icon'
+      const { data, error } = await supabase
+        .from('wish_lists')
+        .insert({
+          name: name.trim(),
+          visibility,
+          icon,
+          owner_id: currentUserId,
+        } as any)
+        .select('id')
+        .single();
+
       if (error) throw error;
       if (!data) throw new Error('Não foi possível criar a lista. Tente novamente.');
-      return data as string;
+      return data.id as string;
     },
     onSuccess: (listId) => {
       queryClient.invalidateQueries({ queryKey: ['my-lists'] });
       setOpen(false);
       setName('');
       setVisibility('public');
+      setIcon('gift');
       setNameError('');
-      toast({ title: '✨ Lista criada!' });
+      toast({ title: '✨ Lista criada com sucesso!' });
       navigate(`/list/${listId}`);
     },
     onError: (e: unknown) => toast({ title: 'Erro ao criar lista', description: e instanceof Error ? e.message : 'Tente novamente.', variant: 'destructive' }),
@@ -94,27 +139,31 @@ const MyLists = () => {
     createList.mutate();
   };
 
-  const renderCard = (list: WishList, shared = false) => (
-    <Card
-      key={list.id}
-      className="border-border bg-card hover:border-primary/30 transition-colors cursor-pointer"
-      onClick={() => navigate(`/list/${list.id}`)}
-    >
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
-          <ListChecks className="h-5 w-5 text-primary" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground truncate">{list.name}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <VisibilityBadge visibility={list.visibility} />
-            {shared && <span className="text-xs text-muted-foreground">Compartilhada</span>}
+  const renderCard = (list: WishList, shared = false) => {
+    const IconComponent = getListIcon((list as any).icon);
+    
+    return (
+      <Card
+        key={list.id}
+        className="border-border bg-card hover:border-primary/30 transition-colors cursor-pointer"
+        onClick={() => navigate(`/list/${list.id}`)}
+      >
+        <CardContent className="p-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
+            <IconComponent className="h-5 w-5 text-primary" />
           </div>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-      </CardContent>
-    </Card>
-  );
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-foreground truncate">{list.name}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <VisibilityBadge visibility={list.visibility} />
+              {shared && <span className="text-xs text-muted-foreground">Compartilhada</span>}
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -141,6 +190,32 @@ const MyLists = () => {
                 />
                 {nameError && <p className="text-sm text-destructive">{nameError}</p>}
               </div>
+
+              {/* Seletor de Ícones */}
+              <div className="space-y-2">
+                <Label>Ícone da Lista</Label>
+                <div className="grid grid-cols-7 gap-2 pt-1">
+                  {AVAILABLE_ICONS.map((item) => {
+                    const TargetIcon = item.icon;
+                    return (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => setIcon(item.name)}
+                        className={`p-2.5 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                          icon === item.name 
+                            ? 'border-primary bg-primary/10 text-primary scale-105 font-medium shadow-sm' 
+                            : 'border-border bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
+                        }`}
+                        title={item.label}
+                      >
+                        <TargetIcon className="h-5 w-5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label>Visibilidade</Label>
                 <Select value={visibility} onValueChange={setVisibility}>

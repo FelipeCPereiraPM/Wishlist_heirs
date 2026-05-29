@@ -10,8 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
-import { Settings, Trash2, UserPlus, Eye, Pencil as PencilIcon, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { 
+  Settings, Trash2, UserPlus, Eye, Pencil as PencilIcon, AlertTriangle, ArrowLeft,
+  Gift, Cake, Heart, Sparkles, Plane, Home, Baby, GraduationCap, Gamepad2, ShoppingBag 
+} from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { AVAILABLE_ICONS } from '@/pages/MyLists';
 
 type WishList = Tables<'wish_lists'>;
 type Profile = Tables<'profiles'>;
@@ -32,6 +36,7 @@ const ListSettingsDialog = ({ list }: Props) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(list.name);
   const [visibility, setVisibility] = useState(list.visibility);
+  const [icon, setIcon] = useState((list as any).icon || 'gift');
   const [addUserId, setAddUserId] = useState('');
   const [addRole, setAddRole] = useState('viewer');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -69,7 +74,11 @@ const ListSettingsDialog = ({ list }: Props) => {
     mutationFn: async () => {
       const { error } = await supabase
         .from('wish_lists')
-        .update({ name: name.trim(), visibility })
+        .update({ 
+          name: name.trim(), 
+          visibility,
+          icon 
+        } as any)
         .eq('id', list.id);
       if (error) throw error;
     },
@@ -202,6 +211,32 @@ const ListSettingsDialog = ({ list }: Props) => {
                 <Label>Nome</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
+
+              {/* Seletor de Ícones nas Configurações */}
+              <div className="space-y-2">
+                <Label>Ícone da Lista</Label>
+                <div className="grid grid-cols-7 gap-2 pt-1">
+                  {AVAILABLE_ICONS.map((item) => {
+                    const TargetIcon = item.icon;
+                    return (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => setIcon(item.name)}
+                        className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                          icon === item.name 
+                            ? 'border-primary bg-primary/10 text-primary scale-105 shadow-sm' 
+                            : 'border-border bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
+                        }`}
+                        title={item.label}
+                      >
+                        <TargetIcon className="h-4 w-4" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label>Visibilidade</Label>
                 <Select value={visibility} onValueChange={setVisibility}>

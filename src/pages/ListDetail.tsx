@@ -13,6 +13,7 @@ import { Plus, Gift, PartyPopper, ArrowLeft } from 'lucide-react';
 import WishItemCard from '@/components/WishItemCard';
 import ListSettingsDialog from '@/components/ListSettingsDialog';
 import { VisibilityBadge } from '@/lib/listVisibility';
+import { getListIcon } from './MyLists';
 import type { Tables } from '@/integrations/supabase/types';
 
 type WishItem = Tables<'wish_items'>;
@@ -30,6 +31,7 @@ const ListDetail = () => {
   const [sizeColor, setSizeColor] = useState('');
   const [notes, setNotes] = useState('');
   const [nameError, setNameError] = useState('');
+  const [filter, setFilter] = useState<'all' | 'para_mim' | 'para_casa'>('all');
 
   const { data: list, isLoading: loadingList } = useQuery({
     queryKey: ['list', id],
@@ -148,13 +150,22 @@ const ListDetail = () => {
     );
   }
 
+  const filteredPending = pending.filter((i) => filter === 'all' || i.category === filter);
+  const filteredPurchased = purchased.filter((i) => filter === 'all' || i.category === filter);
+
+  const ListIcon = getListIcon((list as any).icon);
+
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="icon" onClick={() => navigate('/my-list')} className="shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 shrink-0">
+            <ListIcon className="h-5 w-5 text-primary" />
+          </div>
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-foreground truncate">{list.name}</h2>
             <div className="mt-1"><VisibilityBadge visibility={list.visibility} /></div>
@@ -163,103 +174,180 @@ const ListDetail = () => {
         {isOwner && <ListSettingsDialog list={list} />}
       </div>
 
-      {canEdit && (
-        <section>
-          <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Plus className="h-5 w-5 text-primary" />
-            Adicionar novo desejo
-          </h3>
-          <Card className="border-border bg-card">
-            <CardContent className="pt-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-foreground">Nome do item *</Label>
-                  <Input value={name} onChange={(e) => { setName(e.target.value); if (nameError) setNameError(''); }} placeholder="Ex: Fone de ouvido Bluetooth" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-                  {nameError && <p className="text-sm text-destructive">{nameError}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">Link (opcional)</Label>
-                  <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">Categoria</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="bg-secondary border-border text-foreground"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="para_mim">🙋 Para mim</SelectItem>
-                      <SelectItem value="para_casa">🏠 Para casa</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">🎨 Tamanho / Cor (opcional)</Label>
-                  <Input value={sizeColor} onChange={(e) => setSizeColor(e.target.value)} placeholder="Ex: M, azul marinho, 38" className="bg-secondary border-border text-foreground placeholder:text-muted-foreground" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">📝 Observações (opcional)</Label>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex: prefiro a versão preta, qualquer marca serve" rows={2} className="flex w-full rounded-md border bg-secondary border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-                </div>
-                <Button type="submit" className="w-full" disabled={addItem.isPending}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {addItem.isPending ? 'Adicionando...' : 'Adicionar item'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </section>
-      )}
+      {/* Grid Layout: Left (Items + Filters) | Right (Add Wish Form) */}
+      <div className={`grid grid-cols-1 ${canEdit ? 'lg:grid-cols-12' : ''} gap-8 items-start`}>
+        
+        {/* LADO ESQUERDO: Filtros e Itens (Aparece embaixo no mobile, na esquerda no desktop) */}
+        <div className={`${canEdit ? 'lg:col-span-8 order-2 lg:order-1' : 'w-full'} space-y-6`}>
+          
+          {/* Barra de Filtros */}
+          <div className="space-y-4">
+            <Label className="text-sm font-semibold text-muted-foreground block">Filtrar categoria</Label>
+            <div className="flex flex-wrap gap-2 p-1 bg-secondary/50 rounded-lg border border-border/40 w-fit">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  filter === 'all'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                }`}
+              >
+                ✨ Todos
+              </button>
+              <button
+                onClick={() => setFilter('para_mim')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  filter === 'para_mim'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                }`}
+              >
+                🙋 Para mim
+              </button>
+              <button
+                onClick={() => setFilter('para_casa')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  filter === 'para_casa'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                }`}
+              >
+                🏠 Para casa
+              </button>
+            </div>
+          </div>
 
-      <section>
-        <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Gift className="h-5 w-5 text-primary" />
-          Meus desejos
-          {pending.length > 0 && <span className="text-sm font-normal text-muted-foreground">({pending.length})</span>}
-        </h3>
-        {isLoading ? (
-          <p className="text-center text-muted-foreground py-8">Carregando...</p>
-        ) : pending.length === 0 ? (
-          <Card className="border-border bg-card border-dashed">
-            <CardContent className="py-12 text-center">
-              <Gift className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-muted-foreground">Nenhum desejo pendente.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {pending.map((item) => (
-              <WishItemCard
-                key={item.id}
-                item={item}
-                isOwner={canEdit}
-                onDelete={canEdit ? handleDelete : undefined}
-                onTogglePurchased={canEdit ? (itemId, value) => togglePurchased.mutate({ itemId, value }) : undefined}
-                onEdit={canEdit ? (itemId, updates) => editItem.mutate({ itemId, updates }) : undefined}
-              />
-            ))}
+          {/* Lista de Desejos */}
+          <div className="space-y-8">
+            {/* Desejos Pendentes */}
+            <section className="space-y-4">
+              <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Gift className="h-5 w-5 text-primary" />
+                Meus desejos
+                {filteredPending.length > 0 && (
+                  <span className="text-sm font-normal text-muted-foreground">({filteredPending.length})</span>
+                )}
+              </h3>
+
+              {isLoading ? (
+                <p className="text-center text-muted-foreground py-8">Carregando...</p>
+              ) : filteredPending.length === 0 ? (
+                <Card className="border-border bg-card border-dashed">
+                  <CardContent className="py-12 text-center">
+                    <Gift className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <p className="text-muted-foreground">Nenhum desejo encontrado nesta categoria.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {filteredPending.map((item) => (
+                    <WishItemCard
+                      key={item.id}
+                      item={item}
+                      isOwner={canEdit}
+                      onDelete={canEdit ? handleDelete : undefined}
+                      onTogglePurchased={canEdit ? (itemId, value) => togglePurchased.mutate({ itemId, value }) : undefined}
+                      onEdit={canEdit ? (itemId, updates) => editItem.mutate({ itemId, updates }) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Já Garantidos */}
+            {canEdit && filteredPurchased.length > 0 && (
+              <section className="space-y-4">
+                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <PartyPopper className="h-5 w-5 text-primary" />
+                  Já garantidos 🎉
+                  <span className="text-sm font-normal text-muted-foreground">({filteredPurchased.length})</span>
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {filteredPurchased.map((item) => (
+                    <WishItemCard
+                      key={item.id}
+                      item={item}
+                      isOwner={canEdit}
+                      onDelete={canEdit ? handleDelete : undefined}
+                      onTogglePurchased={canEdit ? (itemId, value) => togglePurchased.mutate({ itemId, value }) : undefined}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+
+        {/* LADO DIREITO: Formulário de Cadastro (Aparece no topo no mobile, na direita no desktop) */}
+        {canEdit && (
+          <div className="lg:col-span-4 order-1 lg:order-2 lg:sticky lg:top-6 space-y-6">
+            <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" />
+              Adicionar novo desejo
+            </h3>
+            <Card className="border-border bg-card shadow-md">
+              <CardContent className="pt-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-foreground">Nome do item *</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => { setName(e.target.value); if (nameError) setNameError(''); }}
+                      placeholder="Ex: Fone de ouvido Bluetooth"
+                      className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                    {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground">Link (opcional)</Label>
+                    <Input
+                      value={link}
+                      onChange={(e) => setLink(e.target.value)}
+                      placeholder="https://..."
+                      className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground">Categoria</Label>
+                    <Select value={category} onValueChange={setCategory}>
+                      <SelectTrigger className="bg-secondary border-border text-foreground">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="para_mim">🙋 Para mim</SelectItem>
+                        <SelectItem value="para_casa">🏠 Para casa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground">🎨 Tamanho / Cor (opcional)</Label>
+                    <Input
+                      value={sizeColor}
+                      onChange={(e) => setSizeColor(e.target.value)}
+                      placeholder="Ex: M, azul marinho, 38"
+                      className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground">📝 Observações (opcional)</Label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Ex: prefiro a versão preta, qualquer marca serve"
+                      rows={2}
+                      className="flex w-full rounded-md border bg-secondary border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full shadow-sm" disabled={addItem.isPending}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {addItem.isPending ? 'Adicionando...' : 'Adicionar item'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         )}
-      </section>
-
-      {canEdit && purchased.length > 0 && (
-        <section>
-          <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
-            <PartyPopper className="h-5 w-5 text-primary" />
-            Já garantidos 🎉
-            <span className="text-sm font-normal text-muted-foreground">({purchased.length})</span>
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {purchased.map((item) => (
-              <WishItemCard
-                key={item.id}
-                item={item}
-                isOwner={canEdit}
-                onDelete={canEdit ? handleDelete : undefined}
-                onTogglePurchased={canEdit ? (itemId, value) => togglePurchased.mutate({ itemId, value }) : undefined}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      </div>
     </div>
   );
 };

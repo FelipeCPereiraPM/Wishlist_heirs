@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Wishlist heirs</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <header class="app-header">
+      <h1 class="app-title">✨ Wishlist heirs</h1>
+      <button id="logout-btn" class="btn-icon hidden" title="Sair">✕</button>
+    </header>
+
+    <!-- Tela de Login -->
+    <div id="login-screen" class="screen hidden">
+      <p class="subtitle">Conecte-se para gerenciar suas listas</p>
+      <form id="login-form" class="form-group">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" required placeholder="seu@email.com">
+        </div>
+        <div class="field">
+          <label for="password">Senha</label>
+          <input type="password" id="password" required placeholder="••••••••">
+        </div>
+        <button type="submit" id="btn-login" class="btn-primary">Entrar</button>
+      </form>
+      <p id="login-error" class="error-msg"></p>
+    </div>
+
+    <!-- Tela Principal (Adicionar Item) -->
+    <div id="main-screen" class="screen hidden">
+      <form id="add-item-form" class="form-group">
+        <!-- Destino -->
+        <div class="field">
+          <label for="wishlist-select">Escolha a Lista</label>
+          <select id="wishlist-select" required>
+            <option value="" disabled selected>Carregando listas...</option>
+          </select>
+        </div>
+
+        <!-- Dados do Item -->
+        <div class="field">
+          <label for="item-name">Nome do Produto</label>
+          <input type="text" id="item-name" required placeholder="Ex: Cadeira Ergonômica">
+        </div>
+
+        <div class="field">
+          <label for="item-link">Link do Produto</label>
+          <input type="url" id="item-link" required placeholder="https://...">
+        </div>
+
+        <div class="row">
+          <div class="field half">
+            <label for="item-category">Categoria</label>
+            <select id="item-category">
+              <option value="para_mim">Para mim</option>
+              <option value="para_casa">Para a casa</option>
+            </select>
+          </div>
+          <div class="field half">
+            <label for="item-size-color">Tamanho / Cor</label>
+            <input type="text" id="item-size-color" placeholder="Ex: M / Preto">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="item-notes">Observações</label>
+          <textarea id="item-notes" rows="2" placeholder="Algum detalhe adicional..."></textarea>
+        </div>
+
+        <button type="submit" id="btn-add" class="btn-primary">Adicionar à Lista</button>
+      </form>
+      <p id="status-msg" class="status-msg"></p>
+    </div>
+
+    <!-- Tela de Carregando/Inicial -->
+    <div id="loading-screen" class="screen">
+      <div class="spinner"></div>
+      <p class="text-center">Verificando sessão...</p>
+    </div>
+  </div>
+
+  <script src="supabase-api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

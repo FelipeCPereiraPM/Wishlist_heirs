@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Wishlist heirs",
+  "version": "1.0.0",
+  "description": "Adicione itens diretamente às suas listas de desejos a partir de qualquer e-commerce.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

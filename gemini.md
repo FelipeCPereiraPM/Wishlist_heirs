@@ -1,4 +1,4 @@
-# 🚀 Guia de Desenvolvimento - Wishlist Dreams
+# 🚀 Guia de Desenvolvimento - Wishlist heirs
 
 Este arquivo serve como um painel de controle e guia técnico para a configuração, desenvolvimento e deploy do seu projeto de lista de desejos.
 
@@ -74,3 +74,28 @@ vercel login
 # 3. Vincular e publicar o projeto na Vercel (siga as instruções na tela)
 vercel
 ```
+
+---
+
+## 🧩 Extensão do Chrome (Adicionar à Lista)
+
+O projeto inclui uma extensão do Chrome em `./chrome-extension` para adicionar produtos diretamente de qualquer site de e-commerce.
+
+### Como Instalar Localmente (Modo Desenvolvedor)
+1. Abra o Google Chrome e acesse `chrome://extensions/`.
+2. No canto superior direito, ative a opção **Modo do desenvolvedor**.
+3. No canto superior esquerdo, clique em **Carregar sem compactação**.
+4. Selecione a pasta `chrome-extension` que está na raiz do seu projeto (`d:\Wishlist\chrome-extension`).
+5. A extensão do **Wishlist heirs** aparecerá na sua lista de extensões! Fixe-a na barra de ferramentas para facilitar o uso.
+
+### Como Utilizar
+1. **Autenticação:** 
+   - Se você estiver logado na versão Web do app em seu navegador (seja localmente ou em produção), a extensão lerá sua sessão automaticamente ao ser aberta.
+   - Caso contrário, faça login diretamente pela extensão usando seu E-mail e Senha.
+2. **Adicionando Produtos:**
+   - Navegue até a página de qualquer produto em qualquer e-commerce.
+   - Clique no ícone da extensão.
+   - Escolha para qual lista o item deve ser enviado.
+   - A extensão preencherá o link e o título do produto automaticamente (ela também tentará puxar preços estimados quando disponíveis).
+   - Ajuste os detalhes (tamanho, cor, observação) e clique em **Adicionar à Lista**.
+

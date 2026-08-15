@@ -62,7 +62,7 @@ const AppLayout = () => {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '');
-      setAvatarUrl((profile as any).avatar_url || '');
+      setAvatarUrl(profile.avatar_url || '');
     }
   }, [profile]);
 
@@ -117,10 +117,10 @@ const AppLayout = () => {
 
       setAvatarUrl(publicUrl);
       toast({ title: '📸 Foto selecionada!', description: 'Lembre-se de salvar as alterações para aplicar.' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro no upload',
-        description: error.message || 'Erro inesperado ao enviar o arquivo.',
+        description: (error instanceof Error ? error.message : null) || 'Erro inesperado ao enviar o arquivo.',
         variant: 'destructive',
       });
     } finally {
@@ -137,7 +137,7 @@ const AppLayout = () => {
         .update({
           display_name: displayName.trim(),
           avatar_url: avatarUrl,
-        } as any)
+        })
         .eq('user_id', user!.id);
       if (profileError) throw profileError;
 
@@ -163,11 +163,11 @@ const AppLayout = () => {
       setNewPassword('');
       setConfirmPassword('');
     },
-    onError: (e: any) => toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao salvar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const displayUser = profile?.display_name || user?.email?.split('@')[0] || 'Usuário';
-  const displayAvatar = (profile as any)?.avatar_url || '';
+  const displayAvatar = profile?.avatar_url || '';
 
   return (
     <div className="flex min-h-screen flex-col">

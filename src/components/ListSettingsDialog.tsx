@@ -36,7 +36,7 @@ const ListSettingsDialog = ({ list }: Props) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(list.name);
   const [visibility, setVisibility] = useState(list.visibility);
-  const [icon, setIcon] = useState((list as any).icon || 'gift');
+  const [icon, setIcon] = useState(list.icon || 'gift');
   const [addUserId, setAddUserId] = useState('');
   const [addRole, setAddRole] = useState('viewer');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -78,7 +78,7 @@ const ListSettingsDialog = ({ list }: Props) => {
           name: name.trim(), 
           visibility,
           icon 
-        } as any)
+        })
         .eq('id', list.id);
       if (error) throw error;
     },
@@ -87,7 +87,7 @@ const ListSettingsDialog = ({ list }: Props) => {
       queryClient.invalidateQueries({ queryKey: ['my-lists'] });
       toast({ title: '✅ Lista atualizada!' });
     },
-    onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const addMember = useMutation({
@@ -103,7 +103,7 @@ const ListSettingsDialog = ({ list }: Props) => {
       setAddRole('viewer');
       toast({ title: '👥 Membro adicionado!' });
     },
-    onError: (e: any) => toast({ title: 'Erro ao adicionar', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao adicionar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const removeMember = useMutation({
@@ -115,14 +115,14 @@ const ListSettingsDialog = ({ list }: Props) => {
       queryClient.invalidateQueries({ queryKey: ['list-members', list.id] });
       toast({ title: 'Membro removido.' });
     },
-    onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const softDeleteList = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
         .from('wish_lists')
-        .update({ deleted_at: new Date().toISOString() } as any)
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', list.id);
       if (error) throw error;
     },
@@ -147,7 +147,7 @@ const ListSettingsDialog = ({ list }: Props) => {
             onClick={async () => {
               const { error } = await supabase
                 .from('wish_lists')
-                .update({ deleted_at: null } as any)
+                .update({ deleted_at: null })
                 .eq('id', list.id);
               if (error) {
                 toast({
@@ -169,7 +169,7 @@ const ListSettingsDialog = ({ list }: Props) => {
         ),
       });
     },
-    onError: (e: any) => toast({ title: 'Erro ao excluir lista', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao excluir lista', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const availableProfiles = profiles.filter((p) => !members.some((m) => m.user_id === p.user_id));

@@ -14,7 +14,7 @@ import WishItemCard from '@/components/WishItemCard';
 import ListSettingsDialog from '@/components/ListSettingsDialog';
 import { VisibilityBadge } from '@/lib/listVisibility';
 import { getListIcon } from './MyLists';
-import type { Tables } from '@/integrations/supabase/types';
+import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
 
 type WishItem = Tables<'wish_items'>;
 type WishList = Tables<'wish_lists'>;
@@ -99,7 +99,7 @@ const ListDetail = () => {
       setName(''); setLink(''); setCategory('para_mim'); setSizeColor(''); setNotes(''); setNameError('');
       toast({ title: '✨ Item adicionado com sucesso!' });
     },
-    onError: (e: any) => toast({ title: 'Erro ao adicionar', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao adicionar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const deleteItem = useMutation({
@@ -108,7 +108,7 @@ const ListDetail = () => {
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast({ title: 'Item removido.' }); },
-    onError: (e: any) => toast({ title: 'Erro ao remover', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao remover', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const togglePurchased = useMutation({
@@ -117,16 +117,16 @@ const ListDetail = () => {
       if (error) throw error;
     },
     onSuccess: (_, { value }) => { invalidate(); toast({ title: value ? '🎉 Marcado como comprado!' : '↩️ Status revertido.' }); },
-    onError: (e: any) => toast({ title: 'Erro ao atualizar', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao atualizar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const editItem = useMutation({
-    mutationFn: async ({ itemId, updates }: { itemId: string; updates: any }) => {
+    mutationFn: async ({ itemId, updates }: { itemId: string; updates: TablesUpdate<'wish_items'> }) => {
       const { error } = await supabase.from('wish_items').update(updates).eq('id', itemId);
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast({ title: '✏️ Item atualizado!' }); },
-    onError: (e: any) => toast({ title: 'Erro ao editar', description: e.message, variant: 'destructive' }),
+    onError: (e: unknown) => toast({ title: 'Erro ao editar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -153,7 +153,7 @@ const ListDetail = () => {
   const filteredPending = pending.filter((i) => filter === 'all' || i.category === filter);
   const filteredPurchased = purchased.filter((i) => filter === 'all' || i.category === filter);
 
-  const ListIcon = getListIcon((list as any).icon);
+  const ListIcon = getListIcon(list.icon);
 
   return (
     <div className="space-y-8">

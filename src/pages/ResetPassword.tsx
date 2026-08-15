@@ -68,10 +68,10 @@ const ResetPassword = () => {
       setTimeout(() => {
         navigate('/auth');
       }, 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Erro inesperado.',
         variant: 'destructive',
       });
     } finally {

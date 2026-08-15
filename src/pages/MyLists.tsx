@@ -110,7 +110,7 @@ const MyLists = () => {
           visibility,
           icon,
           owner_id: currentUserId,
-        } as any)
+        })
         .select('id')
         .single();
 
@@ -140,7 +140,7 @@ const MyLists = () => {
   };
 
   const renderCard = (list: WishList, shared = false) => {
-    const IconComponent = getListIcon((list as any).icon);
+    const IconComponent = getListIcon(list.icon);
     
     return (
       <Card

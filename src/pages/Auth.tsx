@@ -45,10 +45,10 @@ const Auth = () => {
         setMode('login');
         setPassword('');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Erro',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Erro inesperado.',
         variant: 'destructive',
       });
     } finally {

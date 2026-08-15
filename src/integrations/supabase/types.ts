@@ -16,18 +16,21 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           display_name: string | null
           id: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
@@ -39,6 +42,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          deleted_at: string | null
           id: string
           link: string | null
           list_id: string | null
@@ -51,6 +55,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           link?: string | null
           list_id?: string | null
@@ -63,6 +68,7 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
+          deleted_at?: string | null
           id?: string
           link?: string | null
           list_id?: string | null
@@ -117,6 +123,8 @@ export type Database = {
       wish_lists: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          icon: string | null
           id: string
           name: string
           owner_id: string
@@ -124,6 +132,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          icon?: string | null
           id?: string
           name: string
           owner_id: string
@@ -131,6 +141,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          icon?: string | null
           id?: string
           name?: string
           owner_id?: string

@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Users, ListChecks, ChevronRight } from 'lucide-react';
 import { VisibilityBadge } from '@/lib/listVisibility';
+import QueryError from '@/components/QueryError';
 import type { Tables } from '@/integrations/supabase/types';
 
 type WishList = Tables<'wish_lists'>;
@@ -15,7 +16,7 @@ const BrowseLists = () => {
   const navigate = useNavigate();
 
   // RLS returns only lists we can view: public ones + those shared with us.
-  const { data: lists = [], isLoading } = useQuery({
+  const listsQuery = useQuery({
     queryKey: ['browsable-lists', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -28,15 +29,23 @@ const BrowseLists = () => {
     },
     enabled: !!user,
   });
+  const lists = listsQuery.data ?? [];
+  const isLoading = listsQuery.isLoading;
 
+  // Busca apenas os perfis dos donos das listas exibidas (respeita a RLS can_view_profile).
+  const ownerIds = [...new Set(lists.map((l) => l.owner_id))];
   const { data: profiles = [] } = useQuery({
-    queryKey: ['profiles-names'],
+    queryKey: ['browsable-lists-profiles', ownerIds],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('*');
+      if (ownerIds.length === 0) return [] as Profile[];
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', ownerIds);
       if (error) throw error;
       return data as Profile[];
     },
-    enabled: !!user,
+    enabled: !!user && ownerIds.length > 0,
   });
 
   const ownerName = (uid: string) => profiles.find((p) => p.user_id === uid)?.display_name || 'Usuário';
@@ -50,6 +59,8 @@ const BrowseLists = () => {
 
       {isLoading ? (
         <p className="text-center text-muted-foreground py-8">Carregando...</p>
+      ) : listsQuery.isError ? (
+        <QueryError onRetry={() => listsQuery.refetch()} message="Não foi possível carregar as listas." />
       ) : lists.length === 0 ? (
         <Card className="border-border bg-card border-dashed">
           <CardContent className="py-12 text-center">

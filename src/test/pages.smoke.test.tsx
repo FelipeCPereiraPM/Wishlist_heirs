@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -73,10 +73,16 @@ describe("Smoke tests — páginas", () => {
     expect(screen.getByText("Entre na sua conta")).toBeInTheDocument();
   });
 
-  it("ResetPassword renderiza título", async () => {
+  it("ResetPassword sem evento de recuperação mostra link inválido", async () => {
+    vi.useFakeTimers();
     const ResetPassword = (await import("@/pages/ResetPassword")).default;
     renderWithProviders(<ResetPassword />);
-    expect(screen.getByText(/Redefinir senha|Nova senha/i)).toBeInTheDocument();
+    // Sem evento PASSWORD_RECOVERY, após 3s deve cair no estado "link inválido"
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText(/Redefinir senha/i)).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("NotFound renderiza 404", async () => {

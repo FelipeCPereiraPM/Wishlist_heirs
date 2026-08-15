@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Heart, List, Users, LogOut, Sun, Moon, UserPen, Camera } from 'lucide-react';
+import { Heart, List, Users, LogOut, Sun, Moon, UserPen, Camera, Trash2 } from 'lucide-react';
+import { compressAvatar } from '@/lib/compressImage';
 
 const AppLayout = () => {
   const { user, signOut } = useAuth();
@@ -66,6 +67,27 @@ const AppLayout = () => {
     }
   }, [profile]);
 
+  // Contagem de itens na lixeira (listas + itens órfãos excluídos do dono)
+  const { data: trashCount = 0 } = useQuery({
+    queryKey: ['trash-count', user?.id],
+    queryFn: async () => {
+      const [listsRes, itemsRes] = await Promise.all([
+        supabase.from('wish_lists')
+          .select('id', { count: 'exact', head: true })
+          .eq('owner_id', user!.id)
+          .not('deleted_at', 'is', null),
+        supabase.from('wish_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user!.id)
+          .not('deleted_at', 'is', null),
+      ]);
+      if (listsRes.error) throw listsRes.error;
+      if (itemsRes.error) throw itemsRes.error;
+      return (listsRes.count ?? 0) + (itemsRes.count ?? 0);
+    },
+    enabled: !!user,
+  });
+
   const toggleTheme = () => {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
@@ -87,12 +109,22 @@ const AppLayout = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validação local de 50MB
-    const maxSizeBytes = 50 * 1024 * 1024;
+    // Valida tipo de conteúdo (não confiar só no atributo accept)
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Arquivo inválido',
+        description: 'Selecione um arquivo de imagem (JPG, PNG, etc.).',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Limite de 2MB no arquivo original (antes da compressão)
+    const maxSizeBytes = 2 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
       toast({
         title: 'Arquivo muito grande',
-        description: 'O tamanho máximo permitido para fotos é de 50MB.',
+        description: 'O tamanho máximo permitido para fotos é de 2MB.',
         variant: 'destructive',
       });
       return;
@@ -100,17 +132,18 @@ const AppLayout = () => {
 
     try {
       setUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user!.id}/${Math.random()}.${fileExt}`;
+      // Comprime/redimensiona no cliente (256×256 JPEG) antes do upload
+      const compressed = await compressAvatar(file);
+      const filePath = `${user!.id}/${Math.random()}.jpg`;
 
-      // Envia a imagem para o storage bucket 'avatars'
+      // Envia a imagem comprimida para o storage bucket 'avatars' (RLS: só dono escreve em user_id/*)
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, compressed, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Adquire a URL pública da imagem
+      // Adquire a URL pública da imagem (bucket público — URL permanente)
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -205,11 +238,11 @@ const AppLayout = () => {
       </header>
 
       <nav className="border-b border-border bg-card/50">
-        <div className="mx-auto flex max-w-7xl gap-1 px-4">
+        <div className="mx-auto flex max-w-7xl gap-1 px-4 overflow-x-auto">
           <NavLink
             to="/my-list"
             className={({ isActive }) =>
-              `flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+              `flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                 isActive
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -222,7 +255,7 @@ const AppLayout = () => {
           <NavLink
             to="/browse"
             className={({ isActive }) =>
-              `flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+              `flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                 isActive
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -231,6 +264,24 @@ const AppLayout = () => {
           >
             <Users className="h-4 w-4" />
             Ver Listas
+          </NavLink>
+          <NavLink
+            to="/trash"
+            className={({ isActive }) =>
+              `flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
+                isActive
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`
+            }
+          >
+            <Trash2 className="h-4 w-4" />
+            Lixeira
+            {trashCount > 0 && (
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-semibold rounded-full bg-primary text-primary-foreground">
+                {trashCount}
+              </span>
+            )}
           </NavLink>
         </div>
       </nav>
@@ -277,7 +328,7 @@ const AppLayout = () => {
                   </div>
                 </div>
                 <span className="text-[11px] text-muted-foreground text-center">
-                  Tamanho máximo: <strong>50MB</strong>
+                  Tamanho máximo: <strong>2MB</strong> · imagens são comprimidas automaticamente
                 </span>
               </div>
               

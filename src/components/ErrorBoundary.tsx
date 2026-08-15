@@ -37,16 +37,27 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
               <h2 className="text-xl font-semibold text-foreground">Algo deu errado</h2>
               <p className="text-sm text-muted-foreground">
-                Ocorreu um erro inesperado. Tente recarregar a pagina.
+                Ocorreu um erro inesperado. Tente recarregar a página ou voltar ao início.
               </p>
-              <Button
-                onClick={() => {
-                  this.setState({ hasError: false, error: null });
-                  window.location.reload();
-                }}
-              >
-                Tentar novamente
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    this.setState({ hasError: false, error: null });
+                    window.location.href = '/my-list';
+                  }}
+                >
+                  Ir para o início
+                </Button>
+                <Button
+                  onClick={() => {
+                    this.setState({ hasError: false, error: null });
+                    window.location.reload();
+                  }}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -56,3 +67,5 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;

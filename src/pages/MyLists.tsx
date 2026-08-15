@@ -10,6 +10,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { toastError } from '@/lib/toast';
+import QueryError from '@/components/QueryError';
 import { 
   Plus, ListChecks, ChevronRight,
   Plane, Briefcase, Palmtree, Smartphone, Laptop, Gamepad2,
@@ -63,7 +65,7 @@ const MyLists = () => {
   const [nameError, setNameError] = useState('');
 
   // Lists where I'm owner
-  const { data: ownedLists = [] } = useQuery({
+  const ownedListsQuery = useQuery({
     queryKey: ['my-lists', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -76,9 +78,10 @@ const MyLists = () => {
     },
     enabled: !!user,
   });
+  const ownedLists = ownedListsQuery.data ?? [];
 
   // Lists where I'm an editor member
-  const { data: editorMemberships = [] } = useQuery({
+  const editorMembershipsQuery = useQuery({
     queryKey: ['my-editor-memberships', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -91,17 +94,16 @@ const MyLists = () => {
     },
     enabled: !!user,
   });
+  const editorMemberships = editorMembershipsQuery.data ?? [];
 
   const sharedWithMe = editorMemberships.filter((l) => l.owner_id !== user?.id);
 
   const createList = useMutation({
     mutationFn: async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUserId = authData.user?.id;
-      if (!currentUserId) {
+      if (!user) {
         throw new Error('Sua sessão expirou. Faça login novamente para criar uma lista.');
       }
-      
+
       // Cria a lista diretamente inserindo na tabela para aceitar o campo customizado 'icon'
       const { data, error } = await supabase
         .from('wish_lists')
@@ -109,7 +111,7 @@ const MyLists = () => {
           name: name.trim(),
           visibility,
           icon,
-          owner_id: currentUserId,
+          owner_id: user.id,
         })
         .select('id')
         .single();
@@ -128,7 +130,7 @@ const MyLists = () => {
       toast({ title: '✨ Lista criada com sucesso!' });
       navigate(`/list/${listId}`);
     },
-    onError: (e: unknown) => toast({ title: 'Erro ao criar lista', description: e instanceof Error ? e.message : 'Tente novamente.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro ao criar lista'),
   });
 
   const handleCreate = () => {
@@ -167,16 +169,16 @@ const MyLists = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-          <ListChecks className="h-5 w-5 text-primary" />
-          Minhas listas
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 min-w-0">
+          <ListChecks className="h-5 w-5 text-primary shrink-0" />
+          <span className="truncate">Minhas listas</span>
         </h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-1.5" />Nova lista</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova lista</DialogTitle>
             </DialogHeader>
@@ -194,7 +196,7 @@ const MyLists = () => {
               {/* Seletor de Ícones */}
               <div className="space-y-2">
                 <Label>Ícone da Lista</Label>
-                <div className="grid grid-cols-7 gap-2 pt-1">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
                   {AVAILABLE_ICONS.map((item) => {
                     const TargetIcon = item.icon;
                     return (
@@ -237,7 +239,9 @@ const MyLists = () => {
         </Dialog>
       </div>
 
-      {ownedLists.length === 0 ? (
+      {ownedListsQuery.isError ? (
+        <QueryError onRetry={() => ownedListsQuery.refetch()} message="Não foi possível carregar suas listas." />
+      ) : ownedLists.length === 0 ? (
         <Card className="border-border bg-card border-dashed">
           <CardContent className="py-12 text-center">
             <ListChecks className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />

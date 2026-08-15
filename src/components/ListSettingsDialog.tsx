@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { toastError } from '@/lib/toast';
 import { ToastAction } from '@/components/ui/toast';
+import QueryError from '@/components/QueryError';
 import { 
   Settings, Trash2, UserPlus, Eye, Pencil as PencilIcon, AlertTriangle, ArrowLeft,
   Gift, Cake, Heart, Sparkles, Plane, Home, Baby, GraduationCap, Gamepad2, ShoppingBag 
@@ -41,7 +43,7 @@ const ListSettingsDialog = ({ list }: Props) => {
   const [addRole, setAddRole] = useState('viewer');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const { data: profiles = [] } = useQuery({
+  const { data: profiles = [], isError: profilesError } = useQuery({
     queryKey: ['profiles-all', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -87,7 +89,7 @@ const ListSettingsDialog = ({ list }: Props) => {
       queryClient.invalidateQueries({ queryKey: ['my-lists'] });
       toast({ title: '✅ Lista atualizada!' });
     },
-    onError: (e: unknown) => toast({ title: 'Erro', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro'),
   });
 
   const addMember = useMutation({
@@ -103,7 +105,7 @@ const ListSettingsDialog = ({ list }: Props) => {
       setAddRole('viewer');
       toast({ title: '👥 Membro adicionado!' });
     },
-    onError: (e: unknown) => toast({ title: 'Erro ao adicionar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro ao adicionar'),
   });
 
   const removeMember = useMutation({
@@ -115,7 +117,7 @@ const ListSettingsDialog = ({ list }: Props) => {
       queryClient.invalidateQueries({ queryKey: ['list-members', list.id] });
       toast({ title: 'Membro removido.' });
     },
-    onError: (e: unknown) => toast({ title: 'Erro', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro'),
   });
 
   const softDeleteList = useMutation({
@@ -139,7 +141,7 @@ const ListSettingsDialog = ({ list }: Props) => {
       // 3. Mostra o Toast de contagem com opção de Desfazer (Lixeira de 7 dias ativa no banco)
       toast({
         title: '🗑️ Lista enviada para a lixeira',
-        description: 'Você pode desfazer em até 10s ou recuperá-la em 7 dias.',
+        description: 'Você pode desfazer em até 10s ou recuperá-la na Lixeira em até 30 dias.',
         duration: 10000,
         action: (
           <ToastAction
@@ -169,7 +171,7 @@ const ListSettingsDialog = ({ list }: Props) => {
         ),
       });
     },
-    onError: (e: unknown) => toast({ title: 'Erro ao excluir lista', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro ao excluir lista'),
   });
 
   const availableProfiles = profiles.filter((p) => !members.some((m) => m.user_id === p.user_id));
@@ -189,8 +191,8 @@ const ListSettingsDialog = ({ list }: Props) => {
               <DialogTitle className="text-center">Tem certeza que deseja excluir?</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground px-2">
-              A exclusão da lista <strong>"{list.name}"</strong> enviará todos os desejos cadastrados nela para a lixeira. 
-              Você terá até <strong>7 dias</strong> para recuperar a lista antes que ela seja apagada definitivamente do sistema.
+               A exclusão da lista <strong>"{list.name}"</strong> enviará todos os desejos cadastrados nela para a lixeira. 
+               Você terá até <strong>30 dias</strong> para recuperar a lista na Lixeira antes que ela seja apagada definitivamente do sistema.
             </p>
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setConfirmDelete(false)}>
@@ -215,7 +217,7 @@ const ListSettingsDialog = ({ list }: Props) => {
               {/* Seletor de Ícones nas Configurações */}
               <div className="space-y-2">
                 <Label>Ícone da Lista</Label>
-                <div className="grid grid-cols-7 gap-2 pt-1">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
                   {AVAILABLE_ICONS.map((item) => {
                     const TargetIcon = item.icon;
                     return (
@@ -258,7 +260,9 @@ const ListSettingsDialog = ({ list }: Props) => {
                   {visibility === 'public' && <span className="block text-xs font-normal text-muted-foreground mt-1">A lista é pública — todos já podem ver. Adicione editores para colaborar.</span>}
                 </Label>
 
-                {members.length > 0 ? (
+                {profilesError ? (
+                  <QueryError message="Não foi possível carregar a lista de perfis." />
+                ) : members.length > 0 ? (
                   <div className="space-y-2">
                     {members.map((m) => (
                       <div key={m.id} className="flex items-center justify-between gap-2 rounded-md bg-secondary px-3 py-2">
@@ -267,8 +271,8 @@ const ListSettingsDialog = ({ list }: Props) => {
                           <span className="text-sm text-foreground truncate">{profileName(m.user_id)}</span>
                           <span className="text-xs text-muted-foreground">({m.role === 'editor' ? 'editor' : 'visualizador'})</span>
                         </div>
-                        <button onClick={() => removeMember.mutate(m.id)} className="p-1 rounded text-muted-foreground hover:text-destructive">
-                          <Trash2 className="h-3.5 w-3.5" />
+                        <button onClick={() => removeMember.mutate(m.id)} className="p-2 rounded text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
@@ -277,7 +281,7 @@ const ListSettingsDialog = ({ list }: Props) => {
                   <p className="text-xs text-muted-foreground">Nenhuma pessoa adicionada ainda.</p>
                 )}
 
-                <div className="flex gap-2 items-end">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
                   <div className="flex-1 space-y-1.5">
                     <Label className="text-xs">Adicionar perfil</Label>
                     <Select value={addUserId} onValueChange={setAddUserId}>
@@ -291,7 +295,7 @@ const ListSettingsDialog = ({ list }: Props) => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="w-32 space-y-1.5">
+                  <div className="w-full sm:w-32 space-y-1.5">
                     <Label className="text-xs">Papel</Label>
                     <Select value={addRole} onValueChange={setAddRole}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -301,7 +305,7 @@ const ListSettingsDialog = ({ list }: Props) => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button size="icon" onClick={() => addMember.mutate()} disabled={!addUserId || addMember.isPending}>
+                  <Button size="icon" className="w-full sm:w-11" onClick={() => addMember.mutate()} disabled={!addUserId || addMember.isPending}>
                     <UserPlus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -315,7 +319,7 @@ const ListSettingsDialog = ({ list }: Props) => {
                       <AlertTriangle className="h-4 w-4" /> Zona de Perigo
                     </h4>
                     <p className="text-xs text-muted-foreground mt-1">
-                      A exclusão desta lista apagará todos os desejos adicionados a ela permanentemente.
+                       A exclusão desta lista enviará todos os desejos para a lixeira, onde podem ser recuperados por até 30 dias.
                     </p>
                   </div>
                   <Button variant="destructive" size="sm" className="w-full" onClick={() => setConfirmDelete(true)}>

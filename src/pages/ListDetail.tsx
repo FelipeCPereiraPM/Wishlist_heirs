@@ -9,9 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { toastError } from '@/lib/toast';
+import { ToastAction } from '@/components/ui/toast';
+import QueryError from '@/components/QueryError';
 import { Plus, Gift, PartyPopper, ArrowLeft } from 'lucide-react';
 import WishItemCard from '@/components/WishItemCard';
 import ListSettingsDialog from '@/components/ListSettingsDialog';
+import DeleteItemDialog from '@/components/DeleteItemDialog';
 import { VisibilityBadge } from '@/lib/listVisibility';
 import { getListIcon } from './MyLists';
 import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
@@ -32,8 +36,9 @@ const ListDetail = () => {
   const [notes, setNotes] = useState('');
   const [nameError, setNameError] = useState('');
   const [filter, setFilter] = useState<'all' | 'para_mim' | 'para_casa'>('all');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const { data: list, isLoading: loadingList } = useQuery({
+  const listQuery = useQuery({
     queryKey: ['list', id],
     queryFn: async () => {
       const { data, error } = await supabase.from('wish_lists').select('*').eq('id', id!).maybeSingle();
@@ -42,6 +47,8 @@ const ListDetail = () => {
     },
     enabled: !!id,
   });
+  const list = listQuery.data;
+  const loadingList = listQuery.isLoading;
 
   const { data: myMembership } = useQuery({
     queryKey: ['my-membership', id, user?.id],
@@ -62,7 +69,7 @@ const ListDetail = () => {
   const isEditor = myMembership?.role === 'editor';
   const canEdit = isOwner || isEditor;
 
-  const { data: items = [], isLoading } = useQuery({
+  const itemsQuery = useQuery({
     queryKey: ['list-items', id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -75,11 +82,16 @@ const ListDetail = () => {
     },
     enabled: !!id,
   });
+  const items = itemsQuery.data ?? [];
+  const isLoading = itemsQuery.isLoading;
 
   const pending = items.filter((i) => !i.purchased);
   const purchased = items.filter((i) => i.purchased);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['list-items', id] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['list-items', id] });
+    queryClient.invalidateQueries({ queryKey: ['trash-count'] });
+  };
 
   const addItem = useMutation({
     mutationFn: async () => {
@@ -99,16 +111,51 @@ const ListDetail = () => {
       setName(''); setLink(''); setCategory('para_mim'); setSizeColor(''); setNotes(''); setNameError('');
       toast({ title: '✨ Item adicionado com sucesso!' });
     },
-    onError: (e: unknown) => toast({ title: 'Erro ao adicionar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro ao adicionar'),
   });
 
   const deleteItem = useMutation({
     mutationFn: async (itemId: string) => {
-      const { error } = await supabase.from('wish_items').delete().eq('id', itemId);
+      // Soft-delete: marca como removido. A retenção de 30 dias é feita por um cron no banco.
+      const { error } = await supabase
+        .from('wish_items')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', itemId);
       if (error) throw error;
     },
-    onSuccess: () => { invalidate(); toast({ title: 'Item removido.' }); },
-    onError: (e: unknown) => toast({ title: 'Erro ao remover', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onSuccess: (_, itemId) => {
+      // Remoção otimista imediata da UI
+      queryClient.setQueryData<WishItem[]>(['list-items', id], (old) =>
+        old ? old.filter((i) => i.id !== itemId) : []
+      );
+      // Atualiza o badge da lixeira na navegação
+      queryClient.invalidateQueries({ queryKey: ['trash-count'] });
+      toast({
+        title: '🗑️ Item enviado para a lixeira',
+        description: 'Você pode desfazer agora ou recuperá-lo na Lixeira em até 30 dias.',
+        duration: 10000,
+        action: (
+          <ToastAction
+            altText="Desfazer"
+            onClick={async () => {
+              const { error } = await supabase
+                .from('wish_items')
+                .update({ deleted_at: null })
+                .eq('id', itemId);
+              if (error) {
+                toast({ title: 'Erro ao restaurar', description: error.message, variant: 'destructive' });
+              } else {
+                toast({ title: '↩️ Item restaurado.' });
+                invalidate();
+              }
+            }}
+          >
+            Desfazer
+          </ToastAction>
+        ),
+      });
+    },
+    onError: (e: unknown) => toastError(e, 'Erro ao remover'),
   });
 
   const togglePurchased = useMutation({
@@ -117,7 +164,7 @@ const ListDetail = () => {
       if (error) throw error;
     },
     onSuccess: (_, { value }) => { invalidate(); toast({ title: value ? '🎉 Marcado como comprado!' : '↩️ Status revertido.' }); },
-    onError: (e: unknown) => toast({ title: 'Erro ao atualizar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro ao atualizar'),
   });
 
   const editItem = useMutation({
@@ -126,7 +173,7 @@ const ListDetail = () => {
       if (error) throw error;
     },
     onSuccess: () => { invalidate(); toast({ title: '✏️ Item atualizado!' }); },
-    onError: (e: unknown) => toast({ title: 'Erro ao editar', description: e instanceof Error ? e.message : 'Erro inesperado.', variant: 'destructive' }),
+    onError: (e: unknown) => toastError(e, 'Erro ao editar'),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -137,10 +184,18 @@ const ListDetail = () => {
   };
 
   const handleDelete = (itemId: string, itemName: string) => {
-    if (window.confirm(`Remover "${itemName}" da lista?`)) deleteItem.mutate(itemId);
+    setDeleteTarget({ id: itemId, name: itemName });
   };
 
   if (loadingList) return <p className="text-center text-muted-foreground py-8">Carregando...</p>;
+  if (listQuery.isError) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/my-list')}><ArrowLeft className="h-4 w-4 mr-1.5" />Voltar</Button>
+        <QueryError onRetry={() => listQuery.refetch()} message="Não foi possível carregar a lista." />
+      </div>
+    );
+  }
   if (!list) {
     return (
       <div className="space-y-4">
@@ -175,10 +230,10 @@ const ListDetail = () => {
       </div>
 
       {/* Grid Layout: Left (Items + Filters) | Right (Add Wish Form) */}
-      <div className={`grid grid-cols-1 ${canEdit ? 'lg:grid-cols-12' : ''} gap-8 items-start`}>
+      <div className={`grid grid-cols-1 ${canEdit ? 'md:grid-cols-12' : ''} gap-4 md:gap-8 items-start`}>
         
         {/* LADO ESQUERDO: Filtros e Itens (Aparece embaixo no mobile, na esquerda no desktop) */}
-        <div className={`${canEdit ? 'lg:col-span-8 order-2 lg:order-1' : 'w-full'} space-y-6`}>
+        <div className={`${canEdit ? 'md:col-span-8 order-2 md:order-1' : 'w-full'} space-y-6`}>
           
           {/* Barra de Filtros */}
           <div className="space-y-4">
@@ -186,7 +241,7 @@ const ListDetail = () => {
             <div className="flex flex-wrap gap-2 p-1 bg-secondary/50 rounded-lg border border-border/40 w-fit">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
                   filter === 'all'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
@@ -196,7 +251,7 @@ const ListDetail = () => {
               </button>
               <button
                 onClick={() => setFilter('para_mim')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
                   filter === 'para_mim'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
@@ -206,7 +261,7 @@ const ListDetail = () => {
               </button>
               <button
                 onClick={() => setFilter('para_casa')}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
                   filter === 'para_casa'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
@@ -280,7 +335,7 @@ const ListDetail = () => {
 
         {/* LADO DIREITO: Formulário de Cadastro (Aparece no topo no mobile, na direita no desktop) */}
         {canEdit && (
-          <div className="lg:col-span-4 order-1 lg:order-2 lg:sticky lg:top-6 space-y-6">
+          <div className="md:col-span-4 order-1 md:order-2 md:sticky md:top-6 space-y-6">
             <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
               <Plus className="h-5 w-5 text-primary" />
               Adicionar novo desejo
@@ -335,7 +390,7 @@ const ListDetail = () => {
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Ex: prefiro a versão preta, qualquer marca serve"
                       rows={2}
-                      className="flex w-full rounded-md border bg-secondary border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      className="flex w-full resize-y min-h-[80px] rounded-md border bg-secondary border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
                   </div>
                   <Button type="submit" className="w-full shadow-sm" disabled={addItem.isPending}>
@@ -348,6 +403,17 @@ const ListDetail = () => {
           </div>
         )}
       </div>
+
+      <DeleteItemDialog
+        open={!!deleteTarget}
+        itemName={deleteTarget?.name ?? null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        onConfirm={() => {
+          if (deleteTarget) deleteItem.mutate(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+        isPending={deleteItem.isPending}
+      />
     </div>
   );
 };

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,56 +9,47 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Heart, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { resetPasswordSchema, type ResetPasswordValues } from '@/lib/authValidation';
 
 const ResetPassword = () => {
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isRecovery, setIsRecovery] = useState(false);
+  // 'checking' = ainda aguardando o evento de recuperação; 'valid' = link válido; 'invalid' = sem recuperação
+  const [recoveryState, setRecoveryState] = useState<'checking' | 'valid' | 'invalid'>('checking');
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ResetPasswordValues>({
+    resolver: zodResolver(resetPasswordSchema),
+  });
+
   useEffect(() => {
-    // Check if the URL contains a recovery token
-    supabase.auth.onAuthStateChange(async (event) => {
+    // O link de recuperação dispara um evento PASSWORD_RECOVERY no Supabase.
+    // Só aceitamos o formulário quando esse evento chega — qualquer sessão prévia não conta.
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
-        setIsRecovery(true);
+        setRecoveryState('valid');
       }
     });
 
-    // Also check current session for recovery
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsRecovery(true);
-      }
-    });
+    // Timeout de segurança: se nenhum evento chegar em 3s, consideramos o link inválido.
+    const timeout = setTimeout(() => {
+      setRecoveryState((prev) => (prev === 'checking' ? 'invalid' : prev));
+    }, 3000);
+
+    return () => {
+      subscription.subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (password !== confirmPassword) {
-      toast({
-        title: 'Erro',
-        description: 'As senhas não coincidem.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        title: 'Erro',
-        description: 'A senha deve ter pelo menos 6 caracteres.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const onSubmit = async (values: ResetPasswordValues) => {
     setLoading(true);
-
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await supabase.auth.updateUser({ password: values.password });
       if (error) throw error;
 
       toast({
@@ -79,6 +72,20 @@ const ResetPassword = () => {
     }
   };
 
+  if (recoveryState === 'checking') {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-md border-border bg-card">
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">Verificando link de recuperação...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const isRecovery = recoveryState === 'valid';
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-md border-border bg-card">
@@ -97,19 +104,18 @@ const ResetPassword = () => {
         </CardHeader>
         <CardContent>
           {isRecovery ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-foreground">Nova senha</Label>
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
+                  {...register('password')}
+                  aria-invalid={!!errors.password}
                   className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
                 />
+                {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-foreground">Confirmar senha</Label>
@@ -117,12 +123,11 @@ const ResetPassword = () => {
                   id="confirmPassword"
                   type="password"
                   placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
+                  {...register('confirmPassword')}
+                  aria-invalid={!!errors.confirmPassword}
                   className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
                 />
+                {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Salvando...' : 'Redefinir senha'}

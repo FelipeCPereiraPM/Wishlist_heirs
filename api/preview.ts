@@ -183,9 +183,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (value) {
         html += new TextDecoder().decode(value);
         total += value.length;
-        // Parada antecipada: já temos og:image (sites normais), landingImage (Amazon)
-        // ou preload de imagem (Mercado Livre)
-        if (html.includes('og:image') || html.includes('id="landingImage"') || html.includes('as="image"')) {
+        // Parada antecipada: só para quando JÁ temos os marcadores que interessam.
+        // O preço costuma vir DEPOIS da imagem na página, então é preciso esperar ambos.
+        const hasImage = html.includes('og:image')
+          || html.includes('id="landingImage"')
+          || html.includes('as="image"');
+        const hasPrice = html.includes('product:price:amount')
+          || html.includes('priceAmount')
+          || html.includes('priceCurrency')
+          || html.includes('application/ld+json');
+        if (hasImage && hasPrice) {
           break;
         }
       }

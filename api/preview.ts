@@ -128,19 +128,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 5. Extrai metadados — og:image primeiro, depois fallbacks específicos de cada loja
     let image = extractMeta(html, 'og:image') || extractMeta(html, 'twitter:image');
 
-    // Fallback Amazon: o HTML servido NÃO tem og:image, mas tem a imagem principal
-    // do produto em alguns lugares específicos (em ordem de prioridade):
-    //   1. data-old-hires / hiRes — a imagem principal em alta resolução
-    //   2. data-a-dynamic-image — dicionário JSON com as resoluções disponíveis
-    //   3. m.media-amazon.com/images/I/<id>.jpg (ignora .css/.js e avatares _US_)
+    // Fallback Amazon: o HTML servido NÃO tem og:image. A imagem principal do produto
+    // é a tag <img id="landingImage"> — ancoramos nela para NÃO pegar imagens de
+    // carrosséis de produtos relacionados/patrocinados (ex: air fryer em página de
+    // utensílio de cozinha), que aparecem antes no HTML.
     if (!image && /amazon\.com/i.test(target.hostname)) {
-      // 1. data-old-hires (imagem principal em alta resolução)
-      const hiRes = html.match(/data-old-hires="([^"]+)"/) || html.match(/"hiRes":"([^"]+)"/);
-      if (hiRes) {
-        image = hiRes[1].replace(/&amp;/g, '&');
+      // 1. Tag principal <img id="landingImage"> — fonte confiável da imagem do produto
+      const landingImg = html.match(/<img[^>]*id="landingImage"[^>]*>/i);
+      if (landingImg) {
+        const tag = landingImg[0];
+        const oldHires = tag.match(/data-old-hires="([^"]+)"/);
+        const src = tag.match(/src="([^"]+)"/);
+        image = (oldHires?.[1] || src?.[1] || '').replace(/&amp;/g, '&') || null;
       }
 
-      // 2. data-a-dynamic-image (objeto JSON com todas as resoluções do produto principal)
+      // 2. Fallback: data-a-dynamic-image (JSON com as resoluções da imagem principal)
       if (!image) {
         const dyn = html.match(/data-a-dynamic-image="\{&quot;(https:\/\/m\.media-amazon\.com\/images\/I\/[^&]+)\.jpg/g);
         if (dyn && dyn[1]) {
@@ -148,20 +150,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      // 3. Varredura genérica, filtrando avatares (_US_) e preferindo alta resolução (_SL1000_/_SL1500_)
+      // 3. Último recurso: hiRes JSON (só se não achou nada acima).
+      //    Evita a varredura genérica de m.media-amazon.com, que pode pegar
+      //    imagem de produto patrocinado/relacionado e exibir produto errado.
       if (!image) {
-        const amzMatch = html.match(/https:\/\/m\.media-amazon\.com\/images\/I\/[A-Za-z0-9.+_-]+\.jpg/g);
-        if (amzMatch) {
-          const candidates = amzMatch.filter(
-            (u) => !u.includes('.css') && !u.includes('.js') && !/\._US\d+_/.test(u),
-          );
-          // Prioriza a maior resolução disponível (_SL1500_ > _SL1000_ > _SX679_ etc)
-          const best = candidates.find((u) => /\._SL1500_/.test(u))
-            || candidates.find((u) => /\._SL1000_/.test(u))
-            || candidates.find((u) => /\._SL\d+_/.test(u))
-            || candidates.find((u) => /\._SX\d+_/.test(u))
-            || candidates[0];
-          image = best || null;
+        const hiRes = html.match(/"hiRes":"(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/);
+        if (hiRes) {
+          image = hiRes[1].replace(/&amp;/g, '&');
         }
       }
     }

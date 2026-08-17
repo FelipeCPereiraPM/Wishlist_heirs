@@ -104,13 +104,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: `Site respondeu ${response.status}` });
     }
 
-    // 4. Lê o HTML (limite maior para o Amazon, que coloca as imagens no meio da página)
+    // 4. Lê o HTML em streaming. Para cedo quando já encontrou os marcadores
+    //    que interessam (og:image no <head>, ou landingImage no corpo — Amazon).
+    //    O Amazon coloca a imagem principal ~340KB dentro da página, então o
+    //    teto precisa ser maior que o <head>.
     const reader = response.body?.getReader();
     if (!reader) {
       return res.status(502).json({ error: 'Não foi possível ler a resposta' });
     }
     let html = '';
-    const MAX_BYTES = 300_000;
+    const MAX_BYTES = 1_200_000;
     let total = 0;
     while (total < MAX_BYTES) {
       const { done, value } = await reader.read();
@@ -118,6 +121,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (value) {
         html += new TextDecoder().decode(value);
         total += value.length;
+        // Parada antecipada: já temos og:image (sites normais) OU landingImage (Amazon)
+        if (html.includes('og:image') || html.includes('id="landingImage"')) {
+          break;
+        }
       }
     }
     reader.cancel();

@@ -128,16 +128,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 5. Extrai metadados — og:image primeiro, depois fallbacks específicos de cada loja
     let image = extractMeta(html, 'og:image') || extractMeta(html, 'twitter:image');
 
-    // Fallback Amazon: o HTML servido NÃO tem og:image, mas tem a imagem do produto
-    // em URLs https://m.media-amazon.com/images/I/<id>.jpg (ignora .css/.js).
-    // Prefere a imagem em alta resolução (sem sufixo _SL/_SY/_SC/_AC de redimensionamento).
+    // Fallback Amazon: o HTML servido NÃO tem og:image, mas tem a imagem principal
+    // do produto em alguns lugares específicos (em ordem de prioridade):
+    //   1. data-old-hires / hiRes — a imagem principal em alta resolução
+    //   2. data-a-dynamic-image — dicionário JSON com as resoluções disponíveis
+    //   3. m.media-amazon.com/images/I/<id>.jpg (ignora .css/.js e avatares _US_)
     if (!image && /amazon\.com/i.test(target.hostname)) {
-      const amzMatch = html.match(/https:\/\/m\.media-amazon\.com\/images\/I\/[A-Za-z0-9.+_-]+\.jpg/g);
-      if (amzMatch) {
-        const productImages = amzMatch.filter((u) => !u.includes('.css') && !u.includes('.js'));
-        // Se existir imagem sem sufixo de tamanho (_SL75_, _SY450_, etc), é a original
-        const fullRes = productImages.find((u) => !/\._(SL|SY|SC|AC)\d+_/.test(u));
-        image = fullRes || productImages[0] || null;
+      // 1. data-old-hires (imagem principal em alta resolução)
+      const hiRes = html.match(/data-old-hires="([^"]+)"/) || html.match(/"hiRes":"([^"]+)"/);
+      if (hiRes) {
+        image = hiRes[1].replace(/&amp;/g, '&');
+      }
+
+      // 2. data-a-dynamic-image (objeto JSON com todas as resoluções do produto principal)
+      if (!image) {
+        const dyn = html.match(/data-a-dynamic-image="\{&quot;(https:\/\/m\.media-amazon\.com\/images\/I\/[^&]+)\.jpg/g);
+        if (dyn && dyn[1]) {
+          image = dyn[1] + '.jpg';
+        }
+      }
+
+      // 3. Varredura genérica, filtrando avatares (_US_) e preferindo alta resolução (_SL1000_/_SL1500_)
+      if (!image) {
+        const amzMatch = html.match(/https:\/\/m\.media-amazon\.com\/images\/I\/[A-Za-z0-9.+_-]+\.jpg/g);
+        if (amzMatch) {
+          const candidates = amzMatch.filter(
+            (u) => !u.includes('.css') && !u.includes('.js') && !/\._US\d+_/.test(u),
+          );
+          // Prioriza a maior resolução disponível (_SL1500_ > _SL1000_ > _SX679_ etc)
+          const best = candidates.find((u) => /\._SL1500_/.test(u))
+            || candidates.find((u) => /\._SL1000_/.test(u))
+            || candidates.find((u) => /\._SL\d+_/.test(u))
+            || candidates.find((u) => /\._SX\d+_/.test(u))
+            || candidates[0];
+          image = best || null;
+        }
       }
     }
 

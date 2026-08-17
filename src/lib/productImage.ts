@@ -47,3 +47,13 @@ export function isValidImageUrl(url: string | null | undefined): url is string {
     return false;
   }
 }
+
+// Normaliza uma URL de link: se não tiver protocolo, prefixa https://.
+// Aceita "mercadolivre.com.br/produto/1" → "https://mercadolivre.com.br/produto/1".
+export function normalizeUrl(val: string | null | undefined): string {
+  if (!val) return '';
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}

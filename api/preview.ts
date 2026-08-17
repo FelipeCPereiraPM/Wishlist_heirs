@@ -37,13 +37,18 @@ function isValidHttpUrl(val: string): boolean {
 }
 
 // Extrai <meta property="og:image" content="..."> via regex.
-// Simpler que um parser de HTML e suficiente para tags OG (padrão estável).
+// Suporta tanto property antes de content quanto content antes de property
+// (alguns sites invertem a ordem dos atributos).
 function extractMeta(html: string, prop: string): string | null {
-  const re = new RegExp(
+  const propFirst = new RegExp(
     `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`,
     'i',
   );
-  const match = html.match(re);
+  const contentFirst = new RegExp(
+    `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`,
+    'i',
+  );
+  const match = html.match(propFirst) || html.match(contentFirst);
   return match ? match[1].trim() : null;
 }
 
@@ -113,9 +118,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let image = extractMeta(html, 'og:image') || extractMeta(html, 'twitter:image');
     const title = extractMeta(html, 'og:title');
 
-    // 6. Valida que a URL da imagem também é http/https
-    if (image && !isValidHttpUrl(image)) {
-      image = null;
+    // 6. Normaliza e valida a URL da imagem
+    //    - URLs protocol-relative ("//cdn.x/img.jpg") ganham https://
+    //    - Rejeita javascript:, data:, etc.
+    if (image) {
+      if (image.startsWith('//')) image = `https:${image}`;
+      if (!isValidHttpUrl(image)) image = null;
     }
 
     return res.status(200).json({ image, title });

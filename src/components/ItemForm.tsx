@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Save, X, ImageIcon, Loader2 } from 'lucide-react';
 import { itemSchema, type ItemFormValues } from '@/lib/itemValidation';
-import { fetchPreview, isValidImageUrl } from '@/lib/productImage';
+import { fetchPreview, isValidImageUrl, normalizeUrl } from '@/lib/productImage';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ItemFormProps {
@@ -42,11 +42,17 @@ const ItemForm = ({
   const link = watch('link');
   const imageUrl = watch('image_url');
   const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce: ao parar de digitar no link por 800ms, tenta extrair og:image.
+  // Normaliza o link primeiro (aceita "mercadolivre.com.br/..." sem protocolo).
   useEffect(() => {
-    if (!link || !isValidImageUrl(link)) return;
+    const normalized = normalizeUrl(link);
+    if (!normalized || !isValidImageUrl(normalized)) {
+      setPreviewError(null);
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       // Se o usuário já preencheu a imagem manualmente, não sobrescreve.
@@ -54,12 +60,22 @@ const ItemForm = ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
       setPreviewing(true);
+      setPreviewError(null);
       try {
-        const result = await fetchPreview(link, session.access_token);
-        if (result.image) setValue('image_url', result.image);
+        const result = await fetchPreview(normalized, session.access_token);
+        if (result.image && isValidImageUrl(result.image)) {
+          setValue('image_url', result.image);
+        } else {
+          setPreviewError('Não foi possível detectar a imagem automaticamente. Você pode colar a URL manualmente abaixo.');
+        }
         if (result.title && !watch('name')) setValue('name', result.title);
-      } catch {
-        // Falha silenciosa — não bloqueia o cadastro.
+      } catch (e: unknown) {
+        // Falha não bloqueia o cadastro — apenas informa.
+        setPreviewError(
+          e instanceof Error && e.message
+            ? `Não foi possível buscar a imagem: ${e.message}`
+            : 'Não foi possível buscar a imagem automaticamente.',
+        );
       } finally {
         setPreviewing(false);
       }
@@ -136,7 +152,13 @@ const ItemForm = ({
           className={inputCls}
         />
         {errors.image_url && <p className="text-xs text-destructive">{errors.image_url.message}</p>}
-        {!compact && !imageUrl && (
+        {previewError && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-start gap-1">
+            <ImageIcon className="h-3 w-3 mt-0.5 shrink-0" />
+            {previewError}
+          </p>
+        )}
+        {!compact && !imageUrl && !previewError && (
           <p className="text-[11px] text-muted-foreground flex items-center gap-1">
             <ImageIcon className="h-3 w-3" />
             Cole o link do produto e a imagem será buscada automaticamente.

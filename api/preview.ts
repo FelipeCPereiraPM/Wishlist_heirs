@@ -85,7 +85,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Host bloqueado' });
   }
 
-  // 3. Fetch com timeout de 5s, limite de 3 redirects
+  // 3. Fetch com timeout de 5s, limite de 3 redirects.
+  //    Mercado Livre serve conteúdo completo apenas para crawlers de mídia social
+  //    (facebookexternalhit); para outros bots redireciona a /gz/account-verification.
+  const isML = /mercadolivre\.com|mercadolibre\.com/i.test(target.hostname);
+  const userAgent = isML
+    ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+    : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
@@ -93,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       signal: controller.signal,
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'User-Agent': userAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         'Cache-Control': 'no-cache',
@@ -121,8 +128,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (value) {
         html += new TextDecoder().decode(value);
         total += value.length;
-        // Parada antecipada: já temos og:image (sites normais) OU landingImage (Amazon)
-        if (html.includes('og:image') || html.includes('id="landingImage"')) {
+        // Parada antecipada: já temos og:image (sites normais), landingImage (Amazon)
+        // ou preload de imagem (Mercado Livre)
+        if (html.includes('og:image') || html.includes('id="landingImage"') || html.includes('as="image"')) {
           break;
         }
       }
@@ -134,6 +142,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 5. Extrai metadados — og:image primeiro, depois fallbacks específicos de cada loja
     let image = extractMeta(html, 'og:image') || extractMeta(html, 'twitter:image');
+
+    // Fallback Mercado Livre: serve a imagem principal como
+    // <link rel="preload" as="image" href="https://http2.mlstatic.com/D_NQ_...-O.jpg">
+    // (só quando requisitado com User-Agent de crawler social, já aplicado acima).
+    if (!image && isML) {
+      const preload = html.match(/<link[^>]+rel="preload"[^>]+as="image"[^>]+href="([^"]+)"/i)
+        || html.match(/<link[^>]+href="([^"]+)"[^>]+as="image"/i);
+      if (preload) {
+        image = preload[1].replace(/&amp;/g, '&');
+      }
+      // Fallback: primeira imagem de produto http2.mlstatic.com/D_
+      if (!image) {
+        const dImg = html.match(/https:\/\/http2\.mlstatic\.com\/D_[^"'\s]+\.(?:jpg|png|webp)/i);
+        if (dImg) image = dImg[0];
+      }
+    }
 
     // Fallback Amazon: o HTML servido NÃO tem og:image. A imagem principal do produto
     // é a tag <img id="landingImage"> — ancoramos nela para NÃO pegar imagens de

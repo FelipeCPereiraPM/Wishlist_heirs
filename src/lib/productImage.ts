@@ -6,6 +6,7 @@
 export interface PreviewResult {
   image: string | null;
   title: string | null;
+  verification?: boolean;
 }
 
 // Chama a serverless function /api/preview com o token de autenticação do usuário.

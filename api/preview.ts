@@ -104,13 +104,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: `Site respondeu ${response.status}` });
     }
 
-    // 4. Lê no máximo 150KB (tags og: ficam no <head>)
+    // 4. Lê o HTML (limite maior para o Amazon, que coloca as imagens no meio da página)
     const reader = response.body?.getReader();
     if (!reader) {
       return res.status(502).json({ error: 'Não foi possível ler a resposta' });
     }
     let html = '';
-    const MAX_BYTES = 150_000;
+    const MAX_BYTES = 300_000;
     let total = 0;
     while (total < MAX_BYTES) {
       const { done, value } = await reader.read();
@@ -122,8 +122,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     reader.cancel();
 
-    // 5. Extrai metadados
+    // Detecta páginas de verificação anti-bot (ex: Mercado Livre redireciona para /gz/account-verification)
+    const isVerification = /account-verification|bm-verify|recaptcha|Robot Check|interstitial/i.test(html);
+
+    // 5. Extrai metadados — og:image primeiro, depois fallbacks específicos de cada loja
     let image = extractMeta(html, 'og:image') || extractMeta(html, 'twitter:image');
+
+    // Fallback Amazon: o HTML servido NÃO tem og:image, mas tem a imagem do produto
+    // em URLs https://m.media-amazon.com/images/I/<id>.jpg (ignora .css/.js).
+    // Prefere a imagem em alta resolução (sem sufixo _SL/_SY/_SC/_AC de redimensionamento).
+    if (!image && /amazon\.com/i.test(target.hostname)) {
+      const amzMatch = html.match(/https:\/\/m\.media-amazon\.com\/images\/I\/[A-Za-z0-9.+_-]+\.jpg/g);
+      if (amzMatch) {
+        const productImages = amzMatch.filter((u) => !u.includes('.css') && !u.includes('.js'));
+        // Se existir imagem sem sufixo de tamanho (_SL75_, _SY450_, etc), é a original
+        const fullRes = productImages.find((u) => !/\._(SL|SY|SC|AC)\d+_/.test(u));
+        image = fullRes || productImages[0] || null;
+      }
+    }
+
     const title = extractMeta(html, 'og:title');
 
     // 6. Normaliza e valida a URL da imagem
@@ -134,7 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!isValidHttpUrl(image)) image = null;
     }
 
-    return res.status(200).json({ image, title });
+    return res.status(200).json({ image, title, verification: isVerification });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido';
     if (msg.includes('aborted')) {

@@ -49,7 +49,13 @@ function extractMeta(html: string, prop: string): string | null {
     'i',
   );
   const match = html.match(propFirst) || html.match(contentFirst);
-  return match ? match[1].trim() : null;
+  if (!match) return null;
+  // Decodifica entidades HTML comuns (ex: &amp; -> &) que podem aparecer na URL
+  return match[1]
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -87,9 +93,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       signal: controller.signal,
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; WishlistHeirs/1.0; +https://wishlist-heirs.vercel.app)',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
     });
     if (!response.ok) {

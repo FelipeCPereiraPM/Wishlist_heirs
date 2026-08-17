@@ -66,7 +66,13 @@ const ItemForm = ({
         if (result.image && isValidImageUrl(result.image)) {
           setValue('image_url', result.image);
         } else {
-          setPreviewError('Não foi possível detectar a imagem automaticamente. Você pode colar a URL manualmente abaixo.');
+          // Amazon e alguns grandes sites não expõem og:image a bots — orienta o usuário.
+          const isAmazon = /amazon\.com/i.test(normalized);
+          setPreviewError(
+            isAmazon
+              ? 'O Amazon não permite busca automática de imagem. Clique com o botão direito na foto do produto → "Copiar endereço da imagem" e cole abaixo.'
+              : 'Não foi possível detectar a imagem automaticamente. Você pode colar a URL manualmente abaixo.',
+          );
         }
         if (result.title && !watch('name')) setValue('name', result.title);
       } catch (e: unknown) {

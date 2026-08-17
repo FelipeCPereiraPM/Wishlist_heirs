@@ -8,6 +8,17 @@ const normalizeUrl = (val: string): string => {
   return `https://${trimmed}`;
 };
 
+// Valida se é uma URL http/https bem formada (aceita http:// e https://,
+// query strings, fragmentos, etc. — mais robusto que regex).
+const isValidHttpOrHttpsUrl = (val: string) => {
+  try {
+    const u = new URL(val);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 // Campo de link: opcional, mas se preenchido deve ser URL válida.
 // Aceita "amazon.com" sem protocolo — normaliza antes de validar.
 const linkField = z
@@ -16,7 +27,7 @@ const linkField = z
   .optional()
   .transform(normalizeUrl)
   .refine(
-    (val) => !val || /^https:\/\/[^\s]+$/.test(val),
+    (val) => !val || isValidHttpOrHttpsUrl(val),
     'Link inválido. Use um endereço como https://...',
   )
   .transform((val) => (val === '' ? null : val));
@@ -29,7 +40,7 @@ export const itemSchema = z.object({
     .optional()
     .transform((v) => (v?.trim() ? v.trim() : null))
     .refine(
-      (val) => !val || /^https:\/\/[^\s]+$/.test(val),
+      (val) => !val || isValidHttpOrHttpsUrl(val),
       'URL de imagem inválida.',
     ),
   category: z.enum(['para_mim', 'para_casa']),

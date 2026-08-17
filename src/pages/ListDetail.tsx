@@ -4,10 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { toastError } from '@/lib/toast';
 import { ToastAction } from '@/components/ui/toast';
@@ -16,6 +14,8 @@ import { Plus, Gift, PartyPopper, ArrowLeft } from 'lucide-react';
 import WishItemCard from '@/components/WishItemCard';
 import ListSettingsDialog from '@/components/ListSettingsDialog';
 import DeleteItemDialog from '@/components/DeleteItemDialog';
+import ItemForm from '@/components/ItemForm';
+import type { ItemFormValues } from '@/lib/itemValidation';
 import { VisibilityBadge } from '@/lib/listVisibility';
 import { getListIcon } from './MyLists';
 import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
@@ -29,12 +29,6 @@ const ListDetail = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [link, setLink] = useState('');
-  const [category, setCategory] = useState<string>('para_mim');
-  const [sizeColor, setSizeColor] = useState('');
-  const [notes, setNotes] = useState('');
-  const [nameError, setNameError] = useState('');
   const [filter, setFilter] = useState<'all' | 'para_mim' | 'para_casa'>('all');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
@@ -94,21 +88,21 @@ const ListDetail = () => {
   };
 
   const addItem = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: ItemFormValues) => {
       const { error } = await supabase.from('wish_items').insert({
         user_id: user!.id,
         list_id: id!,
-        name: name.trim(),
-        link: link.trim() || null,
-        category,
-        size_color: sizeColor.trim() || null,
-        notes: notes.trim() || null,
+        name: values.name,
+        link: values.link,
+        image_url: values.image_url,
+        category: values.category,
+        size_color: values.size_color,
+        notes: values.notes,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       invalidate();
-      setName(''); setLink(''); setCategory('para_mim'); setSizeColor(''); setNotes(''); setNameError('');
       toast({ title: '✨ Item adicionado com sucesso!' });
     },
     onError: (e: unknown) => toastError(e, 'Erro ao adicionar'),
@@ -175,13 +169,6 @@ const ListDetail = () => {
     onSuccess: () => { invalidate(); toast({ title: '✏️ Item atualizado!' }); },
     onError: (e: unknown) => toastError(e, 'Erro ao editar'),
   });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) { setNameError('O nome do item é obrigatório.'); return; }
-    setNameError('');
-    addItem.mutate();
-  };
 
   const handleDelete = (itemId: string, itemName: string) => {
     setDeleteTarget({ id: itemId, name: itemName });
@@ -342,62 +329,12 @@ const ListDetail = () => {
             </h3>
             <Card className="border-border bg-card shadow-md">
               <CardContent className="pt-6">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-foreground">Nome do item *</Label>
-                    <Input
-                      value={name}
-                      onChange={(e) => { setName(e.target.value); if (nameError) setNameError(''); }}
-                      placeholder="Ex: Fone de ouvido Bluetooth"
-                      className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                    {nameError && <p className="text-sm text-destructive">{nameError}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-foreground">Link (opcional)</Label>
-                    <Input
-                      value={link}
-                      onChange={(e) => setLink(e.target.value)}
-                      placeholder="https://..."
-                      className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-foreground">Categoria</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger className="bg-secondary border-border text-foreground">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="para_mim">🙋 Para mim</SelectItem>
-                        <SelectItem value="para_casa">🏠 Para casa</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-foreground">🎨 Tamanho / Cor (opcional)</Label>
-                    <Input
-                      value={sizeColor}
-                      onChange={(e) => setSizeColor(e.target.value)}
-                      placeholder="Ex: M, azul marinho, 38"
-                      className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-foreground">📝 Observações (opcional)</Label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Ex: prefiro a versão preta, qualquer marca serve"
-                      rows={2}
-                      className="flex w-full resize-y min-h-[80px] rounded-md border bg-secondary border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full shadow-sm" disabled={addItem.isPending}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    {addItem.isPending ? 'Adicionando...' : 'Adicionar item'}
-                  </Button>
-                </form>
+                <ItemForm
+                  onSubmit={(values) => addItem.mutate(values)}
+                  submitLabel="Adicionar item"
+                  submitIcon="plus"
+                  isPending={addItem.isPending}
+                />
               </CardContent>
             </Card>
           </div>

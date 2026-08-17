@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { ExternalLink, Trash2, CheckCircle2, Undo2, Pencil, X, Save } from 'lucide-react';
+import { ExternalLink, Trash2, CheckCircle2, Undo2, Pencil, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ItemForm from '@/components/ItemForm';
+import type { ItemFormValues } from '@/lib/itemValidation';
+import { faviconUrl, isValidImageUrl } from '@/lib/productImage';
 import type { Tables } from '@/integrations/supabase/types';
 
 type WishItem = Tables<'wish_items'>;
@@ -16,7 +15,7 @@ interface WishItemCardProps {
   isOwner: boolean;
   onDelete?: (id: string, name: string) => void;
   onTogglePurchased?: (id: string, purchased: boolean) => void;
-  onEdit?: (id: string, updates: { name: string; link: string | null; category: string; size_color: string | null; notes: string | null }) => void;
+  onEdit?: (id: string, updates: { name: string; link: string | null; category: string; size_color: string | null; notes: string | null; image_url?: string | null }) => void;
 }
 
 const formatDate = (dateStr: string) =>
@@ -36,34 +35,19 @@ const CategoryBadge = ({ category }: { category: string }) =>
 const WishItemCard = ({ item, isOwner, onDelete, onTogglePurchased, onEdit }: WishItemCardProps) => {
   const purchased = item.purchased;
   const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(item.name);
-  const [editLink, setEditLink] = useState(item.link || '');
-  const [editCategory, setEditCategory] = useState(item.category);
-  const [editSizeColor, setEditSizeColor] = useState(item.size_color || '');
-  const [editNotes, setEditNotes] = useState(item.notes || '');
-  const [nameError, setNameError] = useState('');
+  // Estado de fallback: se a imagem principal quebra, cai para o favicon da loja (camada F)
+  const [imgError, setImgError] = useState(false);
 
-  const startEditing = () => {
-    setEditName(item.name);
-    setEditLink(item.link || '');
-    setEditCategory(item.category);
-    setEditSizeColor(item.size_color || '');
-    setEditNotes(item.notes || '');
-    setNameError('');
-    setEditing(true);
-  };
+  const startEditing = () => setEditing(true);
 
-  const handleSave = () => {
-    if (!editName.trim()) {
-      setNameError('O nome é obrigatório.');
-      return;
-    }
+  const handleSave = (values: ItemFormValues) => {
     onEdit?.(item.id, {
-      name: editName.trim(),
-      link: editLink.trim() || null,
-      category: editCategory,
-      size_color: editSizeColor.trim() || null,
-      notes: editNotes.trim() || null,
+      name: values.name,
+      link: values.link,
+      category: values.category,
+      size_color: values.size_color,
+      notes: values.notes,
+      image_url: values.image_url,
     });
     setEditing(false);
   };
@@ -78,51 +62,52 @@ const WishItemCard = ({ item, isOwner, onDelete, onTogglePurchased, onEdit }: Wi
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-foreground">Nome *</Label>
-            <Input value={editName} onChange={(e) => { setEditName(e.target.value); if (nameError) setNameError(''); }} className="bg-secondary border-border text-foreground h-11 text-sm" />
-            {nameError && <p className="text-xs text-destructive">{nameError}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-foreground">Link</Label>
-            <Input value={editLink} onChange={(e) => setEditLink(e.target.value)} placeholder="https://..." className="bg-secondary border-border text-foreground h-11 text-sm" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-foreground">Categoria</Label>
-            <Select value={editCategory} onValueChange={setEditCategory}>
-              <SelectTrigger className="bg-secondary border-border text-foreground h-11 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="para_mim">🙋 Para mim</SelectItem>
-                <SelectItem value="para_casa">🏠 Para casa</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-foreground">🎨 Tamanho / Cor</Label>
-            <Input value={editSizeColor} onChange={(e) => setEditSizeColor(e.target.value)} className="bg-secondary border-border text-foreground h-11 text-sm" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-foreground">📝 Observações</Label>
-            <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="flex w-full resize-y min-h-[80px] rounded-md border bg-secondary border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
-          </div>
-          <Button onClick={handleSave} size="sm" className="w-full">
-            <Save className="h-3.5 w-3.5 mr-1.5" />
-            Salvar
-          </Button>
+          <ItemForm
+            compact
+            defaultValues={{
+              name: item.name,
+              link: item.link ?? '',
+              image_url: item.image_url ?? '',
+              category: item.category,
+              size_color: item.size_color ?? '',
+              notes: item.notes ?? '',
+            }}
+            onSubmit={handleSave}
+            submitLabel="Salvar"
+            submitIcon="save"
+          />
         </CardContent>
       </Card>
     );
   }
 
+  // Cadeia de fallback da imagem:
+  // 1. image_url válida → mostra a imagem do produto
+  // 2. onError → favicon da loja (camada F)
+  // 3. Sem link nem image_url → não renderiza thumbnail
+  const hasImage = isValidImageUrl(item.image_url);
+  const showImage = hasImage && !imgError;
+  const fallbackFavicon = imgError ? faviconUrl(item.link) : null;
+  const showFavicon = isValidImageUrl(fallbackFavicon);
+
   return (
     <Card className={`border-border bg-card group transition-colors ${purchased ? 'opacity-60' : 'hover:border-primary/30'}`}>
       <CardContent className="p-4 flex flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
-          <p className={`font-medium leading-snug break-words ${purchased ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-            {item.name}
-          </p>
+          {/* Thumbnail lateral 64px (camada D + F) */}
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            {(showImage || showFavicon) && (
+              <img
+                src={showImage ? item.image_url! : fallbackFavicon!}
+                alt=""
+                className="h-16 w-16 object-cover rounded-md border border-border shrink-0"
+                onError={() => { if (showImage) setImgError(true); }}
+              />
+            )}
+            <p className={`font-medium leading-snug break-words ${purchased ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+              {item.name}
+            </p>
+          </div>
           {isOwner && (
             <div className="flex items-center gap-0.5 shrink-0">
               {!purchased && onEdit && (

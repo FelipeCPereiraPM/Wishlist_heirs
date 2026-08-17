@@ -119,13 +119,35 @@ Documento vivo com o histórico de melhorias aplicadas no projeto e os próximos
 
 > Objetivo: reduzir duplicação e melhorar legibilidade, sem mudança visual.
 
-| ID | Tarefa | Descrição |
+| ID | Tarefa | Status | Descrição |
+|---|---|---|---|
+| **L1** | Extrair `IconPicker` + mover ícones para `src/lib/listIcons.ts` | Pendente | Hoje `MyLists.tsx` (página) exporta `AVAILABLE_ICONS`/`getListIcon`. Grid de ícones duplicado em `MyLists` e `ListSettingsDialog`. Reduz ~40 linhas duplicadas. |
+| **L2** | Extrair opções de visibilidade para constante | Pendente | Opções duplicadas em `MyLists.tsx:223` e `ListSettingsDialog.tsx:244`. Mover para `src/lib/listVisibility.ts`. |
+| **L3** | Extrair `ItemForm` reutilizável | ✅ Aplicado | Form de adicionar (`ListDetail`) e editar (`WishItemCard`) agora usam `<ItemForm>` com `react-hook-form` + `zod`. Reduziu ~100 linhas duplicadas. Validação de URL no campo Link agora existente (normaliza `amazon.com` → `https://amazon.com`). |
+| **L4** | Extrair `ProfileDialog` + `AvatarUpload` do `AppLayout` | Pendente | `AppLayout.tsx` tem ~397 linhas misturando shell + perfil + avatar + senha + tema. Separar cai para ~120 linhas. |
+| **L5** | `ThemeProvider` + corrigir bug do tema | Pendente | Hoje o toggle adiciona `.light` em vez de `.dark` (inconsistente com `darkMode: ["class"]`). Criar `ThemeContext` custom, corrigir o CSS (inverter `:root`/`.dark`) ou adotar `next-themes`. |
+
+### Fase 4b — Imagem do produto (D + E + F em camadas) ✅ Aplicado
+
+> Objetivo: mostrar thumbnail do produto no card, sem custo de storage.
+
+**Arquitetura:** a imagem é carregada direto do CDN da loja (hotlinking) — só a URL é guardada como texto numa coluna nova. Custo de storage/bandwidth no Supabase: zero.
+
+| Camada | O quê | Arquivo |
 |---|---|---|
-| **L1** | Extrair `IconPicker` + mover ícones para `src/lib/listIcons.ts` | Hoje `MyLists.tsx` (página) exporta `AVAILABLE_ICONS`/`getListIcon`. Grid de ícones duplicado em `MyLists` e `ListSettingsDialog`. Reduz ~40 linhas duplicadas. |
-| **L2** | Extrair opções de visibilidade para constante | Opções duplicadas em `MyLists.tsx:223` e `ListSettingsDialog.tsx:244`. Mover para `src/lib/listVisibility.ts`. |
-| **L3** | Extrair `ItemForm` reutilizável | Form de adicionar (`ListDetail`) e editar (`WishItemCard`) duplicam os mesmos 5 campos. Reduz ~80 linhas. |
-| **L4** | Extrair `ProfileDialog` + `AvatarUpload` do `AppLayout` | `AppLayout.tsx` tem 397 linhas misturando shell + perfil + avatar + senha + tema. Separar cai para ~120 linhas. |
-| **L5** | `ThemeProvider` + corrigir bug do tema | Hoje o toggle adiciona `.light` em vez de `.dark` (inconsistente com `darkMode: ["class"]`). Criar `ThemeContext` custom, corrigir o CSS (inverter `:root`/`.dark`) ou adotar `next-themes`. |
+| **D — Auto-extração** | Serverless `/api/preview` na Vercel faz fetch do HTML e extrai `og:image`. Proteção SSRF (bloqueia IPs privados, timeout 5s, exige JWT). Parse via regex nas tags Open Graph. | `api/preview.ts` |
+| **E — Campo manual** | Campo "URL da imagem (opcional)" editável no formulário. Auto-preenchido por D, mas o usuário pode corrigir/limpar. | `src/components/ItemForm.tsx` |
+| **F — Favicon fallback** | Se a imagem quebra ou não existe, mostra o favicon da loja via Google S2 (`s2/favicons`). | `src/lib/productImage.ts` |
+
+- **Migration:** `20260816000000_add_item_image.sql` adiciona coluna `image_url` em `wish_items`.
+- **Helpers:** `src/lib/productImage.ts` (`fetchPreview`, `faviconUrl`, `isValidImageUrl`).
+- **vercel.json:** Rewrite exclui `/api` para a serverless funcionar.
+- **Tipos:** `types.ts` atualizado manualmente com `image_url` em `Row`/`Insert`/`Update`.
+- **ItemForm:** debounce 800ms no campo Link → chama `/api/preview` → autopreenche a imagem. Preview 64×64 com botão de remover. Falha não bloqueia o cadastro.
+- **WishItemCard:** thumbnail lateral 64×64 (`h-16 w-16 object-cover`). Cadeia de fallback: `image_url` → favicon → nada.
+- **Trash:** mesma thumbnail nos itens excluídos.
+- **Dependência nova:** `@vercel/node` (devDep — só tipos, não afeta o bundle).
+- **Custo total: zero.** Sem storage, sem serviço terceiro, usando o plano Hobby da Vercel já existente.
 
 ### Fase 5 — Arquitetura
 

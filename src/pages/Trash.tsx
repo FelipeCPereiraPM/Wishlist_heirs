@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { toastError } from '@/lib/toast';
 import { Trash2, RotateCcw, AlertTriangle, ExternalLink } from 'lucide-react';
 import QueryError from '@/components/QueryError';
+import { faviconUrl, isValidImageUrl } from '@/lib/productImage';
 import { getListIcon } from './MyLists';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -224,8 +225,17 @@ const Trash = () => {
                   <Card key={item.id} className="border-border bg-card">
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">{item.name}</p>
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          {(isValidImageUrl(item.image_url) || isValidImageUrl(faviconUrl(item.link))) && (
+                            <img
+                              src={isValidImageUrl(item.image_url) ? item.image_url! : faviconUrl(item.link)!}
+                              alt=""
+                              className="h-16 w-16 object-cover rounded-md border border-border shrink-0"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate">{item.name}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <p className="text-xs text-muted-foreground">
                               Será apagado em {daysLeft(item.deleted_at!)} dia{daysLeft(item.deleted_at!) === 1 ? '' : 's'}
@@ -240,6 +250,7 @@ const Trash = () => {
                                 <ExternalLink className="h-3 w-3" /> Ver produto
                               </a>
                             )}
+                          </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">

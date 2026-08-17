@@ -217,7 +217,7 @@ const ListDetail = () => {
       </div>
 
       {/* Grid Layout: Left (Items + Filters) | Right (Add Wish Form) */}
-      <div className={`grid grid-cols-1 ${canEdit ? 'md:grid-cols-12' : ''} gap-4 md:gap-8 items-start`}>
+      <div className={`grid grid-cols-1 ${canEdit ? 'md:grid-cols-12' : ''} gap-4 md:gap-8`}>
         
         {/* LADO ESQUERDO: Filtros e Itens (Aparece embaixo no mobile, na esquerda no desktop) */}
         <div className={`${canEdit ? 'md:col-span-8 order-2 md:order-1' : 'w-full'} space-y-6`}>
@@ -322,21 +322,23 @@ const ListDetail = () => {
 
         {/* LADO DIREITO: Formulário de Cadastro (Aparece no topo no mobile, na direita no desktop) */}
         {canEdit && (
-          <div className="md:col-span-4 order-1 md:order-2 md:sticky md:top-6 space-y-6">
-            <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Plus className="h-5 w-5 text-primary" />
-              Adicionar novo desejo
-            </h3>
-            <Card className="border-border bg-card shadow-md">
-              <CardContent className="pt-6">
-                <ItemForm
-                  onSubmit={(values) => addItem.mutate(values)}
-                  submitLabel="Adicionar item"
-                  submitIcon="plus"
-                  isPending={addItem.isPending}
-                />
-              </CardContent>
-            </Card>
+          <div className="md:col-span-4 order-1 md:order-2">
+            <div className="md:sticky md:top-6 space-y-6">
+              <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Plus className="h-5 w-5 text-primary" />
+                Adicionar novo desejo
+              </h3>
+              <Card className="border-border bg-card shadow-md">
+                <CardContent className="pt-6">
+                  <ItemForm
+                    onSubmit={(values) => addItem.mutate(values)}
+                    submitLabel="Adicionar item"
+                    submitIcon="plus"
+                    isPending={addItem.isPending}
+                  />
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
       </div>

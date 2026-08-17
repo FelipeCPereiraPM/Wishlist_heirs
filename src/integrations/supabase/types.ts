@@ -49,6 +49,7 @@ export type Database = {
           list_id: string | null
           name: string
           notes: string | null
+          price: string | null
           purchased: boolean
           size_color: string | null
           user_id: string
@@ -63,6 +64,7 @@ export type Database = {
           list_id?: string | null
           name: string
           notes?: string | null
+          price?: string | null
           purchased?: boolean
           size_color?: string | null
           user_id: string
@@ -77,6 +79,7 @@ export type Database = {
           list_id?: string | null
           name?: string
           notes?: string | null
+          price?: string | null
           purchased?: boolean
           size_color?: string | null
           user_id?: string

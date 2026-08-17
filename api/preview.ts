@@ -58,6 +58,61 @@ function extractMeta(html: string, prop: string): string | null {
     .trim();
 }
 
+// Formata um valor numérico + moeda para "R$ X,XX" (pt-BR).
+// Aceita "886.74", "BRL", "USD", etc. Retorna null se não for um número válido.
+function formatPrice(value: string, currency?: string): string | null {
+  const num = parseFloat(value);
+  if (isNaN(num)) return null;
+  const symbol = currency === 'USD' ? 'US$' : 'R$';
+  return `${symbol} ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Extrai o preço do HTML. Prioridade:
+//   1. JSON-LD (application/ld+json) com "offers".price + priceCurrency (Mercado Livre e vários)
+//   2. Meta product:price:amount + product:price:currency (padrão Open Graph)
+//   3. Amazon: bloco JSON "twister-plus-buying-options-price-data" (displayPrice)
+function extractPrice(html: string, hostname: string): string | null {
+  // 1. JSON-LD
+  const ldBlocks = html.match(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) || [];
+  for (const block of ldBlocks) {
+    const inner = block.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '');
+    if (!inner.includes('price')) continue;
+    try {
+      const data = JSON.parse(inner);
+      const offers = data?.offers;
+      if (offers?.price != null) {
+        return formatPrice(String(offers.price), offers.priceCurrency);
+      }
+      // Alguns sites colocam price direto no objeto principal
+      if (typeof data?.price === 'number') {
+        return formatPrice(String(data.price), data.priceCurrency);
+      }
+    } catch {
+      // JSON-LD malformado — tenta regex simples
+      const price = inner.match(/"offers"\s*:\s*\{[^}]*"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/);
+      if (price) return formatPrice(price[1]);
+    }
+  }
+
+  // 2. Meta product:price:amount
+  const amount = extractMeta(html, 'product:price:amount');
+  const currency = extractMeta(html, 'product:price:currency');
+  if (amount) return formatPrice(amount, currency || undefined);
+
+  // 3. Amazon específico
+  if (/amazon\.com/i.test(hostname)) {
+    const displayPrice = html.match(/"displayPrice"\s*:\s*"([^"]+)"/);
+    if (displayPrice) {
+      const v = displayPrice[1].trim();
+      if (v) return v;
+    }
+    const priceAmount = html.match(/"priceAmount"\s*:\s*([0-9]+(?:\.[0-9]+)?)/);
+    if (priceAmount) return formatPrice(priceAmount[1]);
+  }
+
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -193,6 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const title = extractMeta(html, 'og:title');
+    const price = extractPrice(html, target.hostname);
 
     // 6. Normaliza e valida a URL da imagem
     //    - URLs protocol-relative ("//cdn.x/img.jpg") ganham https://
@@ -202,7 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!isValidHttpUrl(image)) image = null;
     }
 
-    return res.status(200).json({ image, title, verification: isVerification });
+    return res.status(200).json({ image, title, price, verification: isVerification });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido';
     if (msg.includes('aborted')) {

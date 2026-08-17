@@ -44,6 +44,7 @@ export const itemSchema = z.object({
       'URL de imagem inválida.',
     ),
   category: z.enum(['para_mim', 'para_casa']),
+  price: z.string().optional().transform((v) => (v?.trim() ? v.trim() : null)),
   size_color: z.string().optional().transform((v) => (v?.trim() ? v.trim() : null)),
   notes: z.string().optional().transform((v) => (v?.trim() ? v.trim() : null)),
 });

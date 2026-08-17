@@ -33,6 +33,7 @@ const ItemForm = ({
       name: defaultValues?.name ?? '',
       link: defaultValues?.link ?? '',
       image_url: defaultValues?.image_url ?? '',
+      price: defaultValues?.price ?? '',
       category: defaultValues?.category ?? 'para_mim',
       size_color: defaultValues?.size_color ?? '',
       notes: defaultValues?.notes ?? '',
@@ -41,6 +42,7 @@ const ItemForm = ({
 
   const link = watch('link');
   const imageUrl = watch('image_url');
+  const price = watch('price');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,6 +86,7 @@ const ItemForm = ({
           }
         }
         if (result.title && !watch('name')) setValue('name', result.title);
+        if (result.price && !price) setValue('price', result.price);
       } catch (e: unknown) {
         // Falha não bloqueia o cadastro — apenas informa.
         setPreviewError(
@@ -179,6 +182,15 @@ const ItemForm = ({
             Cole o link do produto e a imagem será buscada automaticamente.
           </p>
         )}
+      </div>
+
+      <div className={rowCls}>
+        <Label className={labelCls}>💰 Preço {compact ? '' : '(opcional)'}</Label>
+        <Input
+          {...register('price')}
+          placeholder={compact ? undefined : 'Ex: R$ 119,90 — detectado automaticamente pelo link'}
+          className={inputCls}
+        />
       </div>
 
       <div className={rowCls}>

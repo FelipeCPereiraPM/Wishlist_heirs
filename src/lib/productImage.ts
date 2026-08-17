@@ -6,6 +6,7 @@
 export interface PreviewResult {
   image: string | null;
   title: string | null;
+  price?: string | null;
   verification?: boolean;
 }
 

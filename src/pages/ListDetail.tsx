@@ -95,6 +95,7 @@ const ListDetail = () => {
         name: values.name,
         link: values.link,
         image_url: values.image_url,
+        price: values.price,
         category: values.category,
         size_color: values.size_color,
         notes: values.notes,

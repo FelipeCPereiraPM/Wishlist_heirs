@@ -149,6 +149,24 @@ Documento vivo com o histórico de melhorias aplicadas no projeto e os próximos
 - **Dependência nova:** `@vercel/node` (devDep — só tipos, não afeta o bundle).
 - **Custo total: zero.** Sem storage, sem serviço terceiro, usando o plano Hobby da Vercel já existente.
 
+### Fase 4c — Preço do produto (extraído da URL) ✅ Aplicado
+
+> Objetivo: puxar o valor do produto automaticamente ao colar o link, sem custo.
+
+| Loja | Fonte | Confiabilidade |
+|---|---|---|
+| **Amazon** | Bloco JSON `twister-plus-buying-options-price-data` (`"displayPrice":"R$ 119,90"`) | Alta (buybox principal) |
+| **Mercado Livre** | JSON-LD `offers.price` + `priceCurrency` | Alta (dados estruturados) |
+| **Outros** | Meta `product:price:amount` ou JSON-LD | Média |
+
+- **Migration:** `20260817000000_add_item_price.sql` adiciona coluna `price` (TEXT) em `wish_items`.
+- **api/preview:** extrai preço com prioridade JSON-LD → meta OG → Amazon; formata para `R$ X,XX` pt-BR. Retorna `{ image, title, price }`.
+- **ItemForm:** campo "💰 Preço (opcional)" editável, autopreenchido pelo debounce do link (só se o usuário não digitou manualmente).
+- **WishItemCard:** badge verde `💰 R$ X,XX` ao lado da categoria.
+- **Tipos:** `types.ts` atualizado com `price` em Row/Insert/Update.
+- **Nota:** o preço é um snapshot no momento do cadastro (pode mudar na loja depois).
+- **Custo: zero.**
+
 ### Fase 5 — Arquitetura
 
 | ID | Tarefa | Descrição |

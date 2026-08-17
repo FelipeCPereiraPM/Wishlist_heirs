@@ -15,7 +15,7 @@ interface WishItemCardProps {
   isOwner: boolean;
   onDelete?: (id: string, name: string) => void;
   onTogglePurchased?: (id: string, purchased: boolean) => void;
-  onEdit?: (id: string, updates: { name: string; link: string | null; category: string; size_color: string | null; notes: string | null; image_url?: string | null }) => void;
+  onEdit?: (id: string, updates: { name: string; link: string | null; category: string; size_color: string | null; notes: string | null; image_url?: string | null; price?: string | null }) => void;
 }
 
 const formatDate = (dateStr: string) =>
@@ -48,6 +48,7 @@ const WishItemCard = ({ item, isOwner, onDelete, onTogglePurchased, onEdit }: Wi
       size_color: values.size_color,
       notes: values.notes,
       image_url: values.image_url,
+      price: values.price,
     });
     setEditing(false);
   };
@@ -68,6 +69,7 @@ const WishItemCard = ({ item, isOwner, onDelete, onTogglePurchased, onEdit }: Wi
               name: item.name,
               link: item.link ?? '',
               image_url: item.image_url ?? '',
+              price: item.price ?? '',
               category: item.category,
               size_color: item.size_color ?? '',
               notes: item.notes ?? '',
@@ -134,6 +136,11 @@ const WishItemCard = ({ item, isOwner, onDelete, onTogglePurchased, onEdit }: Wi
 
         <div className="flex items-center flex-wrap gap-2">
           <CategoryBadge category={item.category} />
+          {item.price && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              💰 {item.price}
+            </span>
+          )}
           {purchased && (
             <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/15 text-primary">
               ✅ Comprado

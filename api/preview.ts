@@ -113,6 +113,40 @@ function extractPrice(html: string, hostname: string): string | null {
   return null;
 }
 
+// Fallback: usa o Jina Reader (r.jina.ai) que renderiza a página com headless
+// browser e devolve o HTML completo (incluindo preços injetados via JS).
+// Gratuito sem API key (limite de ~20 req/min). Timeout próprio de 8s.
+async function fetchPriceViaJina(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      signal: controller.signal,
+      headers: {
+        'X-No-Cache': 'true',
+        'X-Return-Format': 'html',
+        'User-Agent': 'Mozilla/5.0 (compatible; WishlistHeirs/1.0)',
+      },
+    });
+    if (!res.ok) return null;
+    const body = await res.text();
+    // Extrai o preço do HTML renderizado (usa os mesmos padrões do extractPrice)
+    const priceAmount = body.match(/"priceAmount"\s*:\s*([0-9]+(?:\.[0-9]+)?)/);
+    if (priceAmount) return formatPrice(priceAmount[1]);
+    const displayPrice = body.match(/"displayPrice"\s*:\s*"([^"]+)"/);
+    if (displayPrice && displayPrice[1].trim()) {
+      return displayPrice[1].replace(/&#160;/g, ' ').replace(/&nbsp;/g, ' ').trim();
+    }
+    const offers = body.match(/"offers"\s*:\s*\{[^}]*"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?/);
+    if (offers) return formatPrice(offers[1]);
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -255,7 +289,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const title = extractMeta(html, 'og:title');
-    const price = extractPrice(html, target.hostname);
+    let price = extractPrice(html, target.hostname);
+
+    // Fallback: o Amazon (e alguns SPAs) renderiza o preço via JavaScript e não o
+    // expõe no HTML cru. Usa o Jina Reader (gratuito) que renderiza a página com
+    // headless browser e devolve o HTML completo com o preço.
+    // Limitado a domínios conhecidos para não adicionar latência em sites sem preço.
+    if (!price && /amazon\.com/i.test(target.hostname)) {
+      price = await fetchPriceViaJina(url);
+    }
 
     // 6. Normaliza e valida a URL da imagem
     //    - URLs protocol-relative ("//cdn.x/img.jpg") ganham https://

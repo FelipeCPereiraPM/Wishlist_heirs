@@ -42,7 +42,6 @@ const ItemForm = ({
 
   const link = watch('link');
   const imageUrl = watch('image_url');
-  const price = watch('price');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,17 +56,17 @@ const ItemForm = ({
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      // Se o usuário já preencheu a imagem manualmente, não sobrescreve.
-      if (imageUrl && imageUrl.trim()) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
       setPreviewing(true);
       setPreviewError(null);
       try {
         const result = await fetchPreview(normalized, session.access_token);
-        if (result.image && isValidImageUrl(result.image)) {
+        // Imagem: só preenche se o usuário NÃO preencheu manualmente.
+        // Não bloqueia a busca de preço/título (que são independentes).
+        if (result.image && isValidImageUrl(result.image) && !imageUrl.trim()) {
           setValue('image_url', result.image);
-        } else {
+        } else if (!imageUrl.trim()) {
           // Amazon/Mercado Livre e alguns grandes sites não expõem a imagem a bots — orienta o usuário.
           const isAmazon = /amazon\.com/i.test(normalized);
           const isML = /mercadolivre\.com|mercadolibre\.com/i.test(normalized) && result.verification;
@@ -86,7 +85,8 @@ const ItemForm = ({
           }
         }
         if (result.title && !watch('name')) setValue('name', result.title);
-        if (result.price && !price) setValue('price', result.price);
+        // Só preenche o preço se o usuário não digitou manualmente (lê valor atual do form).
+        if (result.price && !watch('price')) setValue('price', result.price);
       } catch (e: unknown) {
         // Falha não bloqueia o cadastro — apenas informa.
         setPreviewError(

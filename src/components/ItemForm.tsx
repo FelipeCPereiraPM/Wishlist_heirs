@@ -258,11 +258,7 @@ const ItemForm = ({
         />
       </div>
 
-      {compact ? submitButton : (
-        <div className="sticky bottom-0 z-10 -mx-6 -mb-6 px-6 pt-3 pb-6 bg-background border-t border-border">
-          {submitButton}
-        </div>
-      )}
+      {submitButton}
     </form>
   );
 };

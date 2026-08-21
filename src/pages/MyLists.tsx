@@ -72,6 +72,7 @@ const MyLists = () => {
         .from('wish_lists')
         .select('*')
         .eq('owner_id', user!.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true });
       if (error) throw error;
       return data as WishList[];

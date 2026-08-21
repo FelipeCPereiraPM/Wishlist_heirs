@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Plus, Save, X, ImageIcon, Loader2 } from 'lucide-react';
+import { Plus, Save, X, ImageIcon, Loader2, CircleAlert } from 'lucide-react';
 import { itemSchema, type ItemFormValues } from '@/lib/itemValidation';
 import { fetchPreview, isValidImageUrl, normalizeUrl } from '@/lib/productImage';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,8 +42,10 @@ const ItemForm = ({
 
   const link = watch('link');
   const imageUrl = watch('image_url');
+  const price = watch('price');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [priceError, setPriceError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce: ao parar de digitar no link por 800ms, tenta extrair og:image.
@@ -52,6 +54,7 @@ const ItemForm = ({
     const normalized = normalizeUrl(link);
     if (!normalized || !isValidImageUrl(normalized)) {
       setPreviewError(null);
+      setPriceError(null);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -60,6 +63,7 @@ const ItemForm = ({
       if (!session?.access_token) return;
       setPreviewing(true);
       setPreviewError(null);
+      setPriceError(null);
       try {
         const result = await fetchPreview(normalized, session.access_token);
         // Imagem: só preenche se o usuário NÃO preencheu manualmente.
@@ -86,7 +90,14 @@ const ItemForm = ({
         }
         if (result.title && !watch('name')) setValue('name', result.title);
         // Só preenche o preço se o usuário não digitou manualmente (lê valor atual do form).
-        if (result.price && !watch('price')) setValue('price', result.price);
+        if (result.price) {
+          if (!watch('price')) setValue('price', result.price);
+          setPriceError(null);
+        } else {
+          setPriceError(
+            'Não foi possível detectar o preço automaticamente. Preencha o valor manualmente abaixo.',
+          );
+        }
       } catch (e: unknown) {
         // Falha não bloqueia o cadastro — apenas informa.
         setPreviewError(
@@ -94,6 +105,7 @@ const ItemForm = ({
             ? `Não foi possível buscar a imagem: ${e.message}`
             : 'Não foi possível buscar a imagem automaticamente.',
         );
+        setPriceError('Não foi possível detectar o preço automaticamente. Preencha o valor manualmente abaixo.');
       } finally {
         setPreviewing(false);
       }
@@ -167,7 +179,7 @@ const ItemForm = ({
           {...register('image_url')}
           placeholder={compact ? undefined : 'URL da imagem ou aguarde auto-detecção ao colar o link'}
           aria-invalid={!!errors.image_url}
-          className={inputCls}
+          className={`${inputCls} ${previewError && !imageUrl ? 'border-amber-500 ring-1 ring-amber-400' : ''}`}
         />
         {errors.image_url && <p className="text-xs text-destructive">{errors.image_url.message}</p>}
         {previewError && (
@@ -189,8 +201,15 @@ const ItemForm = ({
         <Input
           {...register('price')}
           placeholder={compact ? undefined : 'Ex: R$ 119,90 — detectado automaticamente pelo link'}
-          className={inputCls}
+          aria-invalid={!!priceError && !price}
+          className={`${inputCls} ${priceError && !price ? 'border-amber-500 ring-1 ring-amber-400' : ''}`}
         />
+        {priceError && !price && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-start gap-1">
+            <CircleAlert className="h-3 w-3 mt-0.5 shrink-0" />
+            {priceError}
+          </p>
+        )}
       </div>
 
       <div className={rowCls}>

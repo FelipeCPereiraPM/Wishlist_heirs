@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { toastError } from '@/lib/toast';
 import { ToastAction } from '@/components/ui/toast';
@@ -31,6 +32,7 @@ const ListDetail = () => {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'para_mim' | 'para_casa'>('all');
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const listQuery = useQuery({
     queryKey: ['list', id],
@@ -105,6 +107,7 @@ const ListDetail = () => {
     },
     onSuccess: () => {
       invalidate();
+      setAddOpen(false);
       toast({ title: '✨ Item adicionado com sucesso!' });
     },
     onError: (e: unknown) => toastError(e, 'Erro ao adicionar'),
@@ -215,14 +218,19 @@ const ListDetail = () => {
             <div className="mt-1"><VisibilityBadge visibility={list.visibility} /></div>
           </div>
         </div>
-        {isOwner && <ListSettingsDialog list={list} />}
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Adicionar novo desejo
+            </Button>
+          )}
+          {isOwner && <ListSettingsDialog list={list} />}
+        </div>
       </div>
 
-      {/* Grid Layout: Left (Items + Filters) | Right (Add Wish Form) */}
-      <div className={`grid grid-cols-1 ${canEdit ? 'md:grid-cols-12' : ''} gap-4 md:gap-8`}>
-        
-        {/* LADO ESQUERDO: Filtros e Itens (Aparece embaixo no mobile, na esquerda no desktop) */}
-        <div className={`${canEdit ? 'md:col-span-8 order-2 md:order-1' : 'w-full'} space-y-6`}>
+      {/* Lista de desejos (filtros + itens) */}
+      <div className="space-y-6">
           
           {/* Barra de Filtros */}
           <div className="space-y-4">
@@ -320,29 +328,6 @@ const ListDetail = () => {
               </section>
             )}
           </div>
-        </div>
-
-        {/* LADO DIREITO: Formulário de Cadastro (Aparece no topo no mobile, na direita no desktop) */}
-        {canEdit && (
-          <div className="md:col-span-4 order-1 md:order-2">
-            <div className="md:sticky md:top-6 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:pr-1 space-y-6">
-              <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-                <Plus className="h-5 w-5 text-primary" />
-                Adicionar novo desejo
-              </h3>
-              <Card className="border-border bg-card shadow-md">
-                <CardContent className="pt-6">
-                  <ItemForm
-                    onSubmit={(values) => addItem.mutate(values)}
-                    submitLabel="Adicionar item"
-                    submitIcon="plus"
-                    isPending={addItem.isPending}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
       </div>
 
       <DeleteItemDialog
@@ -355,6 +340,26 @@ const ListDetail = () => {
         }}
         isPending={deleteItem.isPending}
       />
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" />
+              Adicionar novo desejo
+            </DialogTitle>
+            <DialogDescription>
+              A imagem e o preço são detectados automaticamente ao colar o link do produto.
+            </DialogDescription>
+          </DialogHeader>
+          <ItemForm
+            onSubmit={(values) => addItem.mutate(values)}
+            submitLabel="Adicionar item"
+            submitIcon="plus"
+            isPending={addItem.isPending}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

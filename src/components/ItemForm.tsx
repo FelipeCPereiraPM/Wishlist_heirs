@@ -127,6 +127,17 @@ const ItemForm = ({
     if (!defaultValues) reset();
   };
 
+  const submitButton = (
+    <Button type="submit" className={buttonCls} disabled={isPending}>
+      {submitIcon === 'save' ? (
+        <Save className="h-4 w-4 mr-1.5" />
+      ) : (
+        <Plus className="h-4 w-4 mr-2" />
+      )}
+      {isPending ? 'Aguarde...' : submitLabel}
+    </Button>
+  );
+
   return (
     <form onSubmit={handleSubmit(submit)} className={compact ? 'flex flex-col gap-3' : 'space-y-4'} noValidate>
       <div className={rowCls}>
@@ -247,14 +258,11 @@ const ItemForm = ({
         />
       </div>
 
-      <Button type="submit" className={buttonCls} disabled={isPending}>
-        {submitIcon === 'save' ? (
-          <Save className="h-4 w-4 mr-1.5" />
-        ) : (
-          <Plus className="h-4 w-4 mr-2" />
-        )}
-        {isPending ? 'Aguarde...' : submitLabel}
-      </Button>
+      {compact ? submitButton : (
+        <div className="sticky bottom-0 z-10 -mx-6 -mb-6 px-6 pt-3 pb-6 bg-card border-t border-border">
+          {submitButton}
+        </div>
+      )}
     </form>
   );
 };

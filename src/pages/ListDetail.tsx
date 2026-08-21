@@ -325,7 +325,7 @@ const ListDetail = () => {
         {/* LADO DIREITO: Formulário de Cadastro (Aparece no topo no mobile, na direita no desktop) */}
         {canEdit && (
           <div className="md:col-span-4 order-1 md:order-2">
-            <div className="md:sticky md:top-6 space-y-6">
+            <div className="md:sticky md:top-6 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:pr-1 space-y-6">
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
                 <Plus className="h-5 w-5 text-primary" />
                 Adicionar novo desejo
